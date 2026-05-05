@@ -6,3 +6,4 @@ x402[evm,fastapi]
 cryptography
 pydantic
 python-dotenv
+web3
