@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Counsel - decision integrity layer for institutional AI agents
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [x86_64]
+    Timeout: 30
+    MemorySize: 1024
+
+Parameters:
+  TreasuryAddress:
+    Type: String
+    Description: Counsel Base treasury wallet address
+  TreasuryPrivateKey:
+    Type: String
+    NoEcho: true
+  CdpApiKeyId:
+    Type: String
+  CdpApiKeySecret:
+    Type: String
+    NoEcho: true
+
+Resources:
+  CounselFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.handler
+      Environment:
+        Variables:
+          EVIDENCE_TABLE: !Ref EvidenceTable
+          BEDROCK_MODEL_ID: us.anthropic.claude-haiku-4-5-20251001-v1:0
+          BASE_RPC_URL: https://mainnet.base.org
+          TREASURY_ADDRESS: !Ref TreasuryAddress
+          TREASURY_PRIVATE_KEY: !Ref TreasuryPrivateKey
+          CDP_API_KEY_ID: !Ref CdpApiKeyId
+          CDP_API_KEY_SECRET: !Ref CdpApiKeySecret
+          AWS_REGION: us-east-1
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EvidenceTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: '*'
+
+  EvidenceTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: pk
+        Type: String
+
+Outputs:
+  ApiUrl:
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+    Description: Counsel API public URL

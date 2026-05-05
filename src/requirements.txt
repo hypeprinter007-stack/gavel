@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+mangum
+boto3
+x402[evm,fastapi]
+cryptography
+pydantic
+python-dotenv
