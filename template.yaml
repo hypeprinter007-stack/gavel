@@ -63,6 +63,7 @@ Resources:
           ORIGINATOR_COUNTRY: US
           ADMIN_API_KEY: !Ref AdminApiKey
           ENFORCE_OFFICER_REGISTRY: "true"
+          EVIDENCE_VAULT_BUCKET: !Ref EvidenceVault
       Events:
         ApiEvent:
           Type: HttpApi
@@ -72,6 +73,17 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref EvidenceTable
+        # Evidence vault: write-only for record_evidence, read for
+        # officer review. Bucket is object-lock COMPLIANCE so even
+        # this role can't shorten retention or delete locked versions.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:PutObjectRetention   # required by ObjectLockRetainUntilDate header
+                - s3:GetObject
+                - s3:GetObjectRetention
+              Resource: !Sub 'arn:aws:s3:::${EvidenceVault}/*'
         - Statement:
             - Effect: Allow
               Action:
@@ -91,6 +103,35 @@ Resources:
       PrimaryKey:
         Name: pk
         Type: String
+
+  # WORM evidence vault: raw responses from compliance providers and
+  # Bedrock synthesis go here, locked for 7 years (typical AML record
+  # retention). DynamoDB only stores the hash + S3 URI, so a malicious
+  # operator with table-write perms can't rewrite the raw evidence
+  # underneath the hash.
+  EvidenceVault:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: COMPLIANCE
+            Days: 2555  # 7 years
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
 Outputs:
   ApiUrl:

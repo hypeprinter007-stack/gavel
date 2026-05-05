@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import logging
@@ -15,7 +16,10 @@ BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
 TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY")
 SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
 SOLANA_TREASURY_KEY = os.getenv("SOLANA_TREASURY_KEY")
+EVIDENCE_VAULT_BUCKET = os.getenv("EVIDENCE_VAULT_BUCKET", "")
+EVIDENCE_RETENTION_DAYS = int(os.getenv("EVIDENCE_RETENTION_DAYS", "2555"))  # 7y default
 _db = None
+_s3 = None
 
 
 def _table():
@@ -23,6 +27,41 @@ def _table():
     if _db is None:
         _db = boto3.resource("dynamodb", region_name=os.getenv("BEDROCK_REGION", "us-east-1")).Table(TABLE)
     return _db
+
+
+def _s3_client():
+    global _s3
+    if _s3 is None:
+        _s3 = boto3.client("s3", region_name=os.getenv("BEDROCK_REGION", "us-east-1"))
+    return _s3
+
+
+def _vault_put(key: str, body: bytes, content_type: str) -> dict:
+    """Write to the WORM evidence vault with COMPLIANCE retention.
+
+    Returns {"bucket","key","version_id","etag","s3_uri"} or raises if
+    the vault isn't configured. Falls back to no-op when bucket env
+    is unset (local dev).
+    """
+    if not EVIDENCE_VAULT_BUCKET:
+        return {}
+    retain_until = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=EVIDENCE_RETENTION_DAYS)
+    resp = _s3_client().put_object(
+        Bucket=EVIDENCE_VAULT_BUCKET,
+        Key=key,
+        Body=body,
+        ContentType=content_type,
+        ObjectLockMode="COMPLIANCE",
+        ObjectLockRetainUntilDate=retain_until,
+        ServerSideEncryption="AES256",
+    )
+    return {
+        "bucket": EVIDENCE_VAULT_BUCKET,
+        "key": key,
+        "version_id": resp.get("VersionId", ""),
+        "etag": resp.get("ETag", "").strip('"'),
+        "s3_uri": f"s3://{EVIDENCE_VAULT_BUCKET}/{key}",
+    }
 
 
 def new_session(vendor_name: str) -> str:
@@ -38,30 +77,65 @@ def new_session(vendor_name: str) -> str:
 
 
 def record_evidence(session_id: str, source: str, data: dict) -> str:
+    """Hash-only in DynamoDB; raw bytes WORM-locked in the vault.
+
+    Splitting hash from raw means a malicious operator with table-write
+    perms cannot rewrite the underlying evidence — the S3 object is
+    locked with COMPLIANCE retention, immutable for the retention
+    period even to root.
+    """
     raw = json.dumps(data, sort_keys=True)
-    h = hashlib.sha256(raw.encode()).hexdigest()
-    _table().put_item(Item={
+    raw_bytes = raw.encode()
+    h = hashlib.sha256(raw_bytes).hexdigest()
+    vault_ref = _vault_put(
+        key=f"sessions/{session_id}/evidence/{source}.json",
+        body=raw_bytes,
+        content_type="application/json",
+    )
+    item = {
         "pk": f"session#{session_id}#evidence#{source}",
         "type": "evidence",
         "source": source,
         "hash": h,
-        "raw": raw,
         "fetched_at": int(time.time()),
-    })
+    }
+    if vault_ref:
+        item.update({
+            "vault_s3_uri": vault_ref["s3_uri"],
+            "vault_version_id": vault_ref["version_id"],
+            "vault_etag": vault_ref["etag"],
+        })
+    else:
+        # Vault not configured (e.g. local dev) — fall back to inline raw.
+        item["raw"] = raw
+    _table().put_item(Item=item)
     return h
 
 
 def record_synthesis(session_id: str, prompt_hash: str, output: str, model: str) -> str:
     h = hashlib.sha256(output.encode()).hexdigest()
-    _table().put_item(Item={
+    vault_ref = _vault_put(
+        key=f"sessions/{session_id}/synthesis.json",
+        body=output.encode(),
+        content_type="application/json",
+    )
+    item = {
         "pk": f"session#{session_id}#synthesis",
         "type": "synthesis",
         "prompt_hash": prompt_hash,
         "output_hash": h,
-        "output": output,
         "model": model,
         "created_at": int(time.time()),
-    })
+    }
+    if vault_ref:
+        item.update({
+            "vault_s3_uri": vault_ref["s3_uri"],
+            "vault_version_id": vault_ref["version_id"],
+            "vault_etag": vault_ref["etag"],
+        })
+    else:
+        item["output"] = output
+    _table().put_item(Item=item)
     return h
 
 
