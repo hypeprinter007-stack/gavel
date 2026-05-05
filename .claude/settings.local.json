@@ -9,7 +9,9 @@
       "Bash(python3 -c \"import uvicorn; print\\('uvicorn', uvicorn.__version__\\)\")",
       "Bash(python3 -c \"import boto3; print\\('boto3', boto3.__version__\\)\")",
       "Bash(python3 -c \"import x402; print\\('x402 ok'\\)\")",
-      "Bash(curl -si -X POST http://localhost:8000/v1/diligence -H 'Content-Type: application/json' -d '{\"vendor_name\":\"test\",\"vendor_country\":\"US\",\"vendor_wallet\":\"0x0360D000622F942b9656D59c679D19d5D12ec989\"}')"
+      "Bash(curl -si -X POST http://localhost:8000/v1/diligence -H 'Content-Type: application/json' -d '{\"vendor_name\":\"test\",\"vendor_country\":\"US\",\"vendor_wallet\":\"0x0360D000622F942b9656D59c679D19d5D12ec989\"}')",
+      "Bash(sam logs *)",
+      "Bash(kill %1)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, HTTPException
 
@@ -8,34 +9,37 @@ from services import bazaar_client, bedrock_client, evidence_store
 router = APIRouter()
 
 
+def _call_bazaar(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.post("/diligence")
 async def run_diligence(req: DiligenceRequest):
     session_id = evidence_store.new_session(req.vendor_name)
 
-    try:
-        travel_rule = bazaar_client.ofac_screen(
-            req.vendor_name, req.vendor_wallet, req.vendor_country, req.amount_usd
-        )
-        evidence_store.record_evidence(session_id, "mru_travel_rule", travel_rule)
-    except Exception as e:
-        travel_rule = {"error": str(e)}
-
-    try:
-        tf_risk = bazaar_client.trade_finance_risk(req.amount_usd)
-        evidence_store.record_evidence(session_id, "orbis_trade_finance", tf_risk)
-    except Exception as e:
-        tf_risk = {"error": str(e)}
-
-    try:
-        ef_score = bazaar_client.embedded_finance_score()
-        evidence_store.record_evidence(session_id, "orbis_embedded_finance", ef_score)
-    except Exception as e:
-        ef_score = {"error": str(e)}
+    # Run all 3 Bazaar calls in parallel
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {
+            pool.submit(_call_bazaar, bazaar_client.ofac_screen,
+                        req.vendor_name, req.vendor_wallet, req.vendor_country, req.amount_usd): "mru_travel_rule",
+            pool.submit(_call_bazaar, bazaar_client.trade_finance_risk, req.amount_usd): "orbis_trade_finance",
+            pool.submit(_call_bazaar, bazaar_client.embedded_finance_score): "orbis_embedded_finance",
+        }
+        results = {}
+        for future in as_completed(futures, timeout=20):
+            key = futures[future]
+            data = future.result()
+            results[key] = data
+            if "error" not in data:
+                evidence_store.record_evidence(session_id, key, data)
 
     evidence = {
-        "travel_rule": travel_rule,
-        "trade_finance_risk": tf_risk,
-        "embedded_finance_score": ef_score,
+        "travel_rule": results.get("mru_travel_rule", {}),
+        "trade_finance_risk": results.get("orbis_trade_finance", {}),
+        "embedded_finance_score": results.get("orbis_embedded_finance", {}),
     }
 
     try:

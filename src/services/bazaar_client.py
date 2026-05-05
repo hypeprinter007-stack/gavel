@@ -19,6 +19,9 @@ def _session() -> _requests.Session:
     return x402_requests(client)
 
 
+_TIMEOUT = 15
+
+
 def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amount_usd: float) -> dict:
     resp = _session().post(
         "https://mru-oracle.com/compliance/travel-rule",
@@ -36,6 +39,7 @@ def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amoun
             "amount_usd": amount_usd,
             "purpose": "trade settlement",
         },
+        timeout=_TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json()
@@ -51,6 +55,7 @@ def trade_finance_risk(amount_usd: float, country_risk: str = "medium") -> dict:
             "tenorDays": 30,
             "buyerCreditRating": "BBB",
         },
+        timeout=_TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json()
@@ -68,6 +73,7 @@ def embedded_finance_score(jurisdiction: str = "other") -> dict:
             "errorRate": 0.002,
             "encryptionLevel": "aes256-fips",
         },
+        timeout=_TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json()
