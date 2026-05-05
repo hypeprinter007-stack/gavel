@@ -72,6 +72,60 @@ async def x402_mw(request, call_next):
     return await payment_middleware(x402_routes, x402_server)(request, call_next)
 
 
+# Idempotency middleware MUST be declared after x402_mw so that FastAPI
+# runs it FIRST (last-registered = outermost). A cached hit returns
+# the prior response without re-charging the customer for x402.
+import json as _json
+
+from fastapi.responses import JSONResponse, Response
+from services import idempotency
+
+
+@app.middleware("http")
+async def idempotency_mw(request, call_next):
+    if not (request.method == "POST" and request.url.path == "/v1/diligence"):
+        return await call_next(request)
+
+    key = request.headers.get("idempotency-key") or request.headers.get("Idempotency-Key")
+    if not key:
+        return await call_next(request)
+
+    body = await request.body()
+    request_h = idempotency.request_hash(body)
+
+    cached = idempotency.lookup(key)
+    if cached:
+        if cached.get("request_hash") == request_h:
+            return JSONResponse(
+                _json.loads(cached["response_body"]),
+                status_code=int(cached["status_code"]),
+                headers={"Idempotent-Replayed": "true"},
+            )
+        return JSONResponse(
+            {"detail": "Idempotency-Key was previously used with a different payload"},
+            status_code=409,
+        )
+
+    # New key — let it through, then cache the response on success.
+    response = await call_next(request)
+    if response.status_code == 200:
+        chunks: list[bytes] = []
+        async for chunk in response.body_iterator:
+            chunks.append(chunk)
+        full = b"".join(chunks)
+        try:
+            idempotency.store(key, request_h, 200, _json.loads(full))
+        except Exception:
+            pass
+        return Response(
+            content=full,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
+    return response
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "counsel"}
