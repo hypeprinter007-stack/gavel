@@ -1,8 +1,8 @@
 # Counsel — Decision Integrity Layer for Institutional AI Agents
 
-**EasyA Consensus 2026 · Miami · Built on Base + Solana**
+**EasyA Consensus 2026 · Miami · Multi-chain on Base + Solana**
 
-Counsel is a compliance infrastructure layer that lets institutional AI agents make high-stakes vendor decisions with a tamper-evident, dual-chain audit trail — paid for via x402 on Base and anchored on both Base and Solana mainnet.
+Counsel is a compliance infrastructure layer for institutional AI agents. Pay in Base USDC or Solana USDC via x402, get a tamper-evident audit trail anchored on **both** chains every single call, and let a human officer sign off with **Metamask or Phantom**. Genuinely chain-neutral end-to-end.
 
 ---
 
@@ -21,41 +21,40 @@ Counsel solves all three.
 ## How It Works
 
 ```
-Client Agent  ──$0.05 USDC x402──►  Counsel API (AWS Lambda)
-                                          │
-                          ┌───────────────┼───────────────┐
-                          ▼               ▼               ▼
-                    MRU SENTINEL    Orbis Trade     Orbis Embedded
-                    Travel Rule     Finance Risk    Finance Score
-                   (x402 $0.005)  (x402 $0.005)   (x402 $0.005)
-                          │               │               │
-                          └───────────────┴───────────────┘
-                                          │
-                               Bedrock Claude synthesis
-                                          │
-                            Merkle root over evidence + synthesis
-                                          │
-                          ┌───────────────┴───────────────┐
-                          ▼                               ▼
-                  Base mainnet                     Solana mainnet
-                 (calldata tx)                    (Memo program)
-                          │                               │
-                          └───────────────┬───────────────┘
-                                          │
-                          Officer signs Merkle root with their wallet
-                                          │
-                                Signer address recovered
-                                  (EIP-191, secp256k1)
+Client Agent ──$0.05 USDC x402 (Base OR Solana)──►  Counsel API (AWS Lambda)
+                                                          │
+                                          ┌───────────────┼───────────────┐
+                                          ▼               ▼               ▼
+                                    MRU SENTINEL    Orbis Trade     Orbis Embedded
+                                    Travel Rule     Finance Risk    Finance Score
+                                   (x402 $0.005)  (x402 $0.005)   (x402 $0.005)
+                                          │               │               │
+                                          └───────────────┴───────────────┘
+                                                          │
+                                              Bedrock Claude synthesis
+                                                          │
+                                       Merkle root over evidence + synthesis
+                                                          │
+                                  ┌───────────────────────┴───────────────────────┐
+                                  ▼                                               ▼
+                           Base mainnet                                    Solana mainnet
+                          (calldata tx)                                   (Memo program)
+                                  │                                               │
+                                  └───────────────────────┬───────────────────────┘
+                                                          │
+                              Officer signs Merkle root: Metamask (EIP-191) OR Phantom (Ed25519)
+                                                          │
+                                       Server detects scheme, verifies, returns signer
 ```
 
-1. **Client pays $0.05 USDC** via x402 on Base to call `/v1/diligence`
-2. **Counsel pays compliance APIs** in parallel via x402
+1. **Client pays $0.05 USDC** via x402 — Base or Solana, their choice. CDP facilitator settles on whichever chain the client signed for.
+2. **Counsel pays compliance APIs** in parallel via x402 (live: MRU Travel Rule on Base; Solana providers registered, integration pending)
 3. **Claude Haiku synthesizes** the evidence into a structured recommendation
 4. **Merkle root** is computed over all evidence + synthesis hashes
-5. **The same Merkle root is anchored to Base AND Solana** in parallel — calldata tx on Base, Memo program tx on Solana. Two independent L1s, one decision.
-6. **Compliance officer signs the Merkle root** with their wallet — `signer_address` cryptographically recovered server-side via EIP-191
+5. **The same Merkle root is anchored to Base AND Solana in parallel** — EIP-1559 calldata on Base, Memo program on Solana. Two independent L1s every call.
+6. **Compliance officer signs the Merkle root** with whatever wallet they have. Server inspects the request: with `signer_pubkey` it verifies an Ed25519 signature against the Solana pubkey; without, it ECDSA-recovers the EVM address from the EIP-191 personal_sign.
 
-Forging an approval requires breaking SHA256 *and* the officer's secp256k1 key. Reverting the audit trail requires reorging two independent chains.
+Forging an approval requires breaking SHA256 *and* the officer's private key (secp256k1 or Ed25519). Reverting the audit trail requires reorging two independent L1s.
 
 ---
 
@@ -64,10 +63,16 @@ Forging an approval requires breaking SHA256 *and* the officer's secp256k1 key. 
 **API:** `https://ki55wa4a21.execute-api.us-east-1.amazonaws.com`
 
 ```bash
-pip install requests eth-account x402
-export CLIENT_PRIVATE_KEY=0x...
-export OFFICER_PRIVATE_KEY=0x...
+pip install requests 'x402[evm,svm]' eth-account solders base58
+export CLIENT_PRIVATE_KEY=0x...        # EVM payer (for Base USDC)
+export SOLANA_CLIENT_KEY=...           # base58 Solana keypair (for Solana USDC)
+export OFFICER_PRIVATE_KEY=0x...       # optional, only for the EVM officer path
+
+# Default: pay in Base, sign with EVM officer
 python test_e2e.py
+
+# Pay in Solana USDC, sign with a Phantom-style Solana wallet
+python test_e2e.py --solana-pay --solana-sign
 ```
 
 **Sample response:**
@@ -101,7 +106,9 @@ python test_e2e.py
 
 ## API
 
-### `POST /v1/diligence` — x402 gated ($0.05 USDC)
+### `POST /v1/diligence` — x402 gated ($0.05 USDC, Base **or** Solana)
+
+The route advertises two `accepts` payment options. Clients pick the chain by signing for the corresponding scheme.
 
 ```json
 {
@@ -120,17 +127,30 @@ Returns the officer review view: session metadata, `merkle_root`, both `anchors`
 
 ### `POST /v1/officer/{session_id}/sign`
 
-The officer signs the `merkle_root` with their wallet (EIP-191 `personal_sign`). Counsel recovers the signer address server-side and stores it alongside the decision.
+The officer signs the `merkle_root` with whatever wallet they have. Two schemes supported:
 
+**EVM (Metamask) — EIP-191 `personal_sign`:**
 ```json
 {
   "decision": "APPROVED",
   "signature": "0x<personal_sign(merkle_root)>",
-  "notes": "Travel rule clear. Proceed with enhanced monitoring."
+  "notes": "Travel rule clear."
 }
 ```
+Server ECDSA-recovers the signer address.
 
-Returns: `decision`, `signer_address`, `merkle_root`, both `anchors`
+**Solana (Phantom) — Ed25519:**
+```json
+{
+  "decision": "APPROVED",
+  "signature": "<base58 Ed25519 signature over merkle_root>",
+  "signer_pubkey": "<base58 Solana pubkey>",
+  "notes": "Travel rule clear."
+}
+```
+Server verifies the signature against the supplied pubkey.
+
+Returns: `decision`, `signer`, `signature_scheme` (`"eip191"` or `"ed25519"`), `merkle_root`, both `anchors`
 
 ---
 
@@ -189,15 +209,15 @@ See [gavel_toolkit/README.md](gavel_toolkit/README.md) for the full registry sch
 
 | Layer | Tech |
 |-------|------|
-| Payment rail | [x402](https://github.com/coinbase/x402) — HTTP 402 on Base USDC |
-| Facilitator | Coinbase Developer Platform (EdDSA JWT auth) |
+| Payment rail (inbound) | [x402](https://github.com/coinbase/x402) `[evm,svm,fastapi]` — accepts Base USDC **or** Solana USDC |
+| Facilitator | Coinbase Developer Platform (EdDSA JWT auth, settles on both chains) |
 | Base anchor | Base mainnet — Merkle root as EIP-1559 calldata (`web3.py`) |
 | Solana anchor | Solana mainnet — Memo program (`solders` + raw RPC) |
-| Officer signing | EIP-191 `personal_sign`; signer recovered with `eth-account` |
+| Officer signing | EIP-191 (secp256k1, `eth-account`) **or** Ed25519 (`solders.signature`) — auto-detected |
 | API | FastAPI + AWS Lambda (Mangum) |
 | AI | Amazon Bedrock — Claude Haiku 4.5 |
 | Evidence store | DynamoDB single-table |
-| Compliance data | MRU SENTINEL, Orbis (live), Scorechain / SAS / SOLANA-AML-Checker (registered, pending) |
+| Compliance data | MRU SENTINEL, Orbis (live on Base); Scorechain / SAS / SOLANA-AML-Checker (registered, pending) |
 | Discovery | `gavel_toolkit` — chain-agnostic JSON registry, CAIP-2 networks |
 
 ---
@@ -207,6 +227,8 @@ See [gavel_toolkit/README.md](gavel_toolkit/README.md) for the full registry sch
 x402 turns compliance APIs into pay-per-query infrastructure. Sub-cent micropayments make it economical to call multiple providers per decision — impossible with traditional rails (Stripe, ACH, wire). The Coinbase facilitator settles on-chain with no accounts, no invoices, no shared API keys.
 
 Base mainnet provides cheap calldata (~$0.0006 per anchor) for production-volume per-decision anchoring. Solana adds a second independent L1 with sub-second finality and ~$0.0008 Memo costs, doubling the integrity guarantee. CAIP-2 chain identifiers throughout the registry make multi-chain composability native, not bolted-on.
+
+Counsel is genuinely chain-neutral at every layer that matters for institutional integrity: the client picks the payment chain, the officer picks the signature scheme, and the evidence chain anchors to both. The compliance providers themselves are registered cross-chain so that as the Solana x402 ecosystem matures, no Counsel code change is needed to route real calls there.
 
 ---
 
