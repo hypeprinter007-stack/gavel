@@ -112,6 +112,18 @@ Resources:
         Name: pk
         Type: String
 
+  # API Gateway throttling note: per-stage rate + burst limits are
+  # applied directly via the apigatewayv2 update-stage API after deploy
+  # (see scripts/apply_throttling.sh). SAM's AWS::Serverless::HttpApi
+  # DefaultRouteSettings doesn't propagate cleanly through the transform
+  # for HTTP APIs.
+  #
+  # Why not AWS WAF v2? WAF v2 attaches to ALB / CloudFront / REST API
+  # / AppSync / App Runner — but NOT to API Gateway HTTP API (v2).
+  # Production-grade WAF coverage requires CloudFront in front of the
+  # HTTP API; that's on the security roadmap. Native throttling here
+  # provides L7 rate-limit protection in the meantime.
+
   # Composite runtime secret. Seeded from CloudFormation parameters on
   # first deploy; rotate independently afterward via:
   #   aws secretsmanager update-secret --secret-id <arn> \
