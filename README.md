@@ -255,6 +255,24 @@ The architecture (stateless Lambda, hash-only DynamoDB, WORM S3, allowlisted off
 
 ---
 
+## Position in the Ecosystem
+
+On **2026-05-05** the Solana Foundation and Google Cloud launched [**pay.sh**](https://github.com/solana-foundation/pay) — an x402-native API marketplace with 50+ providers (Helius, Alchemy, Dune, Nansen, plus Google Cloud's BigQuery / Gemini / Cloud Run) and a built-in MCP server for Claude Code, Codex, Cursor, and other agent runtimes.
+
+Counsel and pay.sh are complementary, not competitive:
+
+| | pay.sh | Counsel |
+|---|---|---|
+| **Layer** | Horizontal infrastructure | Vertical compliance + integrity |
+| **Audience** | Any AI agent paying for any API | Institutional agents making regulated decisions |
+| **Settlement** | x402 on Solana | x402 on Base **and** Solana |
+| **Output** | Proxied API responses | Hash-bound evidence chain anchored on two L1s, signed by an authorized human officer |
+| **Hosted on** | Google Cloud Platform | AWS (Lambda + Secrets Manager + S3 Object Lock) |
+
+`gavel_toolkit` provider entries can declare `"via": "pay.sh"` to indicate dispatch through the pay.sh proxy. One placeholder is registered today (`helius_rpc_via_paysh`); native pay.sh dispatch is the next integration step in the roadmap. The point: Counsel is a compliance-vertical built on the same x402 substrate the Solana Foundation just blessed as the standard for the agentic API economy.
+
+---
+
 ## Why x402 + Base + Solana
 
 x402 turns compliance APIs into pay-per-query infrastructure. Sub-cent micropayments make it economical to call multiple providers per decision — impossible with traditional rails (Stripe, ACH, wire). The Coinbase facilitator settles on-chain with no accounts, no invoices, no shared API keys.

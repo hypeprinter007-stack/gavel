@@ -81,6 +81,14 @@ The registry uses CAIP-2 chain identifiers, so the same `resolve(intent)` call r
 | Solana Attestation Service | `kyc_attestation` | $0.005 |
 | SOLANA AML Checker | `wallet_screening` | $0.001 |
 
+**Routed via pay.sh** — Solana Foundation + Google Cloud's x402 marketplace
+
+| Provider | Intent | Price | Routing |
+|----------|--------|-------|---------|
+| Helius Solana RPC | `solana_rpc` | $0.0001 | `via: pay.sh` |
+
+Provider entries can declare `"via": "pay.sh"` to indicate routing through the [pay.sh](https://github.com/solana-foundation/pay) proxy launched by the Solana Foundation and Google Cloud. The x402 protocol is identical (same SVM scheme, same CDP facilitator), so adding pay.sh-routed dispatch is a small extension on top of `_build_session`. The flag is honored by `resolve_and_call` today (skips with an explanatory message); native dispatch lands in the next iteration.
+
 ```python
 from gavel_toolkit.discovery import resolve
 resolve("wallet_screening")

@@ -1,0 +1,21 @@
+{
+  "id": "helius_rpc_via_paysh",
+  "name": "Helius Solana RPC (via pay.sh)",
+  "intent": "solana_rpc",
+  "url": "https://pay.sh/v1/proxy/helius/mainnet",
+  "method": "POST",
+  "price_usd": 0.0001,
+  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  "via": "pay.sh",
+  "description": "Pay-per-call Solana RPC access via Helius, routed through the pay.sh x402 proxy launched by Solana Foundation + Google Cloud. Demonstrates gavel_toolkit's ability to dispatch through a registry-of-registries.",
+  "input_schema": {
+    "jsonrpc": "string",
+    "id": "number",
+    "method": "string",
+    "params": "array"
+  },
+  "output_fields": ["jsonrpc", "id", "result", "error"],
+  "tags": ["solana_rpc", "helius", "pay_sh", "infrastructure"],
+  "status": "registered_pending_integration",
+  "_note": "When resolve_and_call gains pay.sh routing support, providers with via=pay.sh will be dispatched through the pay.sh proxy with the underlying provider name resolved by pay.sh's catalog."
+}

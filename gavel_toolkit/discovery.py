@@ -65,6 +65,20 @@ def _is_solana(network: str) -> bool:
     return network.startswith("solana:")
 
 
+def _is_via_paysh(provider: dict) -> bool:
+    """Provider routed through the pay.sh proxy (Solana Foundation + Google
+    Cloud's x402-native API marketplace, launched May 2026).
+
+    Currently a roadmap signal — when the integration lands, providers
+    flagged via=pay.sh will dispatch through the pay.sh proxy URL with
+    the underlying provider resolved by pay.sh's own catalog. The x402
+    payment handshake itself is identical (same SVM scheme, same CDP
+    facilitator), so adding this routing layer is a small dispatcher
+    extension on top of the existing _build_session machinery.
+    """
+    return provider.get("via", "").lower() == "pay.sh"
+
+
 def _build_session(evm_payer_key: str | None, solana_payer_key: str | None):
     """Construct an x402 client session that can pay on any registered chain."""
     from x402 import x402ClientSync
@@ -115,6 +129,11 @@ def resolve_and_call(
     last_error: Exception | None = None
     skipped: list[tuple[str, str]] = []
     for provider in providers:
+        # pay.sh-routed providers need a pay.sh-aware dispatcher we
+        # haven't built yet; skip them until that lands.
+        if _is_via_paysh(provider):
+            skipped.append((provider["id"], "pay.sh routing not yet implemented"))
+            continue
         network = provider.get("network", "")
         if _is_evm(network) and not evm_payer_key:
             skipped.append((provider["id"], "no evm_payer_key"))
