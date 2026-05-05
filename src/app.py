@@ -13,6 +13,8 @@ from routes.stub import router as stub_router
 app = FastAPI(title="Counsel", description="Decision integrity layer for institutional AI agents")
 
 TREASURY = os.getenv("TREASURY_ADDRESS", "")
+SOLANA_TREASURY = os.getenv("SOLANA_TREASURY_ADDRESS", "")
+SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 
 from x402.http.middleware.fastapi import payment_middleware, RouteConfig
 from x402.http import HTTPFacilitatorClient, FacilitatorConfig, PaymentOption
@@ -26,19 +28,34 @@ facilitator = HTTPFacilitatorClient(
     )
 )
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.mechanisms.svm.exact import register_exact_svm_server
 
 x402_server = x402ResourceServer(facilitator_clients=facilitator)
 x402_server.register("eip155:8453", ExactEvmServerScheme())
+register_exact_svm_server(x402_server, networks=SOLANA_MAINNET_CAIP2)
+
+_accepts: list[PaymentOption] = [
+    PaymentOption(
+        scheme="exact",
+        pay_to=TREASURY,
+        price="$0.05",
+        network="eip155:8453",
+    ),
+]
+if SOLANA_TREASURY:
+    _accepts.append(
+        PaymentOption(
+            scheme="exact",
+            pay_to=SOLANA_TREASURY,
+            price="$0.05",
+            network=SOLANA_MAINNET_CAIP2,
+        )
+    )
 
 x402_routes = {
     "POST /v1/diligence": RouteConfig(
-        accepts=PaymentOption(
-            scheme="exact",
-            pay_to=TREASURY,
-            price="$0.05",
-            network="eip155:8453",
-        ),
-        description="Vendor due diligence — $0.05 USDC",
+        accepts=_accepts,
+        description="Vendor due diligence — $0.05 USDC, settle on Base or Solana",
     ),
 }
 

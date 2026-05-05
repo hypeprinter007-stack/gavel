@@ -12,5 +12,9 @@ class DiligenceRequest(BaseModel):
 
 class OfficerSignRequest(BaseModel):
     signature: str
-    decision: str  # "approve" | "reject"
+    decision: str  # "APPROVED" | "REJECTED"
     notes: Optional[str] = None
+    # If signer_pubkey is provided, signature is treated as Ed25519 (Solana wallet);
+    # otherwise it's verified as EIP-191 personal_sign and the signer address
+    # is recovered server-side.
+    signer_pubkey: Optional[str] = None

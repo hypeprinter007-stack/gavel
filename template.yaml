@@ -25,6 +25,9 @@ Parameters:
     Type: String
     NoEcho: true
     Default: ""
+  SolanaTreasuryAddress:
+    Type: String
+    Default: ""
 
 Resources:
   CounselFunction:
@@ -46,6 +49,7 @@ Resources:
           ORBIS_EMBEDDED_URL: https://ki55wa4a21.execute-api.us-east-1.amazonaws.com/v1/stub/orbis/embedded-finance-score
           SOLANA_RPC_URL: https://api.mainnet-beta.solana.com
           SOLANA_TREASURY_KEY: !Ref SolanaTreasuryKey
+          SOLANA_TREASURY_ADDRESS: !Ref SolanaTreasuryAddress
       Events:
         ApiEvent:
           Type: HttpApi
