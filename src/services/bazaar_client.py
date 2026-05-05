@@ -51,12 +51,27 @@ def _jurisdiction_bucket(iso2: str) -> str:
     return _JURISDICTION_BUCKETS.get((iso2 or "").lower(), "other")
 
 
+_cached_session: _requests.Session | None = None
+_cached_treasury_address: str | None = None
+
+
 def _session() -> _requests.Session:
-    acct = Account.from_key(TREASURY_KEY)
-    signer = EthAccountSigner(acct)
-    client = x402ClientSync()
-    client.register("eip155:8453", ExactEvmClientScheme(signer))
-    return x402_requests(client)
+    """Lazy-init x402 session; reused across calls in the same Lambda container."""
+    global _cached_session
+    if _cached_session is None:
+        acct = Account.from_key(TREASURY_KEY)
+        signer = EthAccountSigner(acct)
+        client = x402ClientSync()
+        client.register("eip155:8453", ExactEvmClientScheme(signer))
+        _cached_session = x402_requests(client)
+    return _cached_session
+
+
+def _treasury_address() -> str:
+    global _cached_treasury_address
+    if _cached_treasury_address is None:
+        _cached_treasury_address = Account.from_key(TREASURY_KEY).address
+    return _cached_treasury_address
 
 
 _TIMEOUT = 15
@@ -67,7 +82,7 @@ def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amoun
         MRU_TRAVEL_RULE_URL,
         json={
             "originator": {
-                "address": Account.from_key(TREASURY_KEY).address,
+                "address": _treasury_address(),
                 "name": ORIGINATOR_NAME,
                 "country_code": ORIGINATOR_COUNTRY,
             },

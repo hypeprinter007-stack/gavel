@@ -112,13 +112,29 @@ def anchor_to_solana(merkle_root: str) -> str:
 
     kp = Keypair.from_bytes(base58.b58decode(SOLANA_TREASURY_KEY))
 
-    def _rpc(method, params):
-        r = rq.post(SOLANA_RPC_URL, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, timeout=10)
-        r.raise_for_status()
-        j = r.json()
-        if "error" in j:
-            raise RuntimeError(f"Solana RPC: {j['error']}")
-        return j["result"]
+    def _rpc(method, params, retries: int = 2):
+        """One retry with 1s backoff — public mainnet RPC 503s under burst load."""
+        last_err: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                r = rq.post(
+                    SOLANA_RPC_URL,
+                    json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
+                    timeout=10,
+                )
+                r.raise_for_status()
+                j = r.json()
+                if "error" in j:
+                    raise RuntimeError(f"Solana RPC: {j['error']}")
+                return j["result"]
+            except Exception as e:
+                last_err = e
+                if attempt < retries:
+                    log.warning("solana RPC %s failed (attempt %d): %s; retrying", method, attempt + 1, e)
+                    time.sleep(1)
+                    continue
+                raise
+        raise last_err  # unreachable, satisfies type checker
 
     blockhash = _rpc("getLatestBlockhash", [{"commitment": "finalized"}])["value"]["blockhash"]
     ix = Instruction(
