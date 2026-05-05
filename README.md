@@ -238,6 +238,7 @@ Counsel was built with institutional review in mind. The following are **shipped
 - **Scoped Bedrock IAM.** Lambda execution role can invoke only the Claude Haiku family of foundation models + cross-region inference profiles in this account, not the entire Bedrock service.
 - **AWS Secrets Manager for runtime secrets.** Treasury wallet keys (EVM + Solana), CDP API key secret, and the admin bearer token live in a single composite secret (`counsel/runtime`). Lambda env vars carry only the secret ARN; values are fetched at cold-start via `services/secrets.py` and cached in process memory. Lambda IAM is scoped to `secretsmanager:GetSecretValue` on that specific ARN; CloudTrail logs every access. Secrets can be rotated via `aws secretsmanager update-secret` without a stack redeploy.
 - **API Gateway edge throttling.** 100 RPS sustained / 50 in-flight burst per stage, applied via `apigatewayv2 update-stage` (see `scripts/apply_throttling.sh`). Defends against the asymmetric spend-amplification vector — an attacker paying $0.05 inbound to trigger $0.015 outbound + Bedrock cost gets rate-limited at the AWS edge before any of that fires.
+- **Customer authentication on `/v1/diligence`.** Per-institution API keys (`ck_live_...`) registered via `/v1/admin/customers`; raw keys returned exactly once and stored only as SHA-256 hashes in DynamoDB. Middleware runs BEFORE x402 — a missing or revoked key returns 401 without ever charging the customer. The authenticated customer's identity (name, country, tenant) flows into the travel-rule originator field and into the per-tenant officer registry scope, so an officer registered for tenant *A* cannot approve a tenant *B* session.
 
 The following are **planned / production-track**:
 
@@ -247,7 +248,6 @@ The following are **planned / production-track**:
 | Multi-sig treasury (Safe on Base, Squads on Solana) | Roadmap | Treasury becomes a 2-of-3 multi-sig with daily spend caps and 24h timelock for treasury changes. Anchor txs become signed proposals. |
 | AWS WAF v2 with IP reputation + managed rule set | Roadmap | WAF v2 doesn't natively attach to API Gateway HTTP API (v2). Production posture: CloudFront in front of HTTP API → attach WAF web ACL with rate-based rule, IP reputation list, and tuned CommonRuleSet. Native API Gateway throttling provides L7 rate-limit coverage in the meantime. |
 | Lambda in VPC with PrivateLink endpoints | Roadmap | Bedrock + DynamoDB + S3 via VPC endpoints; outbound HTTPS via NAT-pinned IPs for IP allowlisting on partner APIs. |
-| Customer authentication on `/v1/diligence` | Roadmap | Per-tenant API keys identifying the requesting institution; the `originator` field on travel-rule calls reflects the actual customer rather than `ORIGINATOR_NAME`. |
 | Anomaly detection | Roadmap | CloudWatch alarms on REJECT spike, unusual jurisdictions, officer signing volume; SIEM integration. |
 | Right-to-Erasure path | Roadmap | DynamoDB TTL on session rows; PII-anonymization endpoint that nulls personal fields while preserving hash + signer. |
 
