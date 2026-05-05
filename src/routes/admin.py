@@ -8,7 +8,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from services import officer_registry, secrets
+from services import customer_registry, officer_registry, secrets
 
 router = APIRouter()
 
@@ -63,3 +63,52 @@ async def list_officers(tenant: Optional[str] = None):
         tenant=tenant or officer_registry.DEFAULT_TENANT,
     )
     return {"tenant": tenant or officer_registry.DEFAULT_TENANT, "officers": items}
+
+
+# ───────────── Customer registry ─────────────
+
+
+class CustomerRegistration(BaseModel):
+    customer_name: str
+    customer_country: str  # ISO 3166-1 alpha-2
+    tenant: Optional[str] = None  # auto-slugged from customer_name if omitted
+
+
+@router.post("/admin/customers", dependencies=[Depends(_require_admin)])
+async def create_customer(req: CustomerRegistration):
+    """Register a new customer. Returns the API key ONCE — store it
+    immediately, it cannot be retrieved later."""
+    result = customer_registry.register_customer(
+        customer_name=req.customer_name,
+        customer_country=req.customer_country,
+        tenant=req.tenant,
+    )
+    rec = result["customer"]
+    return {
+        "api_key": result["api_key"],
+        "customer": {
+            "tenant": rec["tenant"],
+            "customer_name": rec["customer_name"],
+            "customer_country": rec["customer_country"],
+            "key_hash": rec["key_hash"],
+            "status": rec["status"],
+            "created_at": rec["created_at"],
+        },
+        "warning": "API key shown once and never retrievable. Store it in your secret manager now.",
+    }
+
+
+@router.get("/admin/customers", dependencies=[Depends(_require_admin)])
+async def list_customers():
+    items = customer_registry.list_customers()
+    # Return key_hash (used to identify the row) but never the key itself.
+    return {"customers": [
+        {k: v for k, v in c.items() if k not in ("pk", "type")}
+        for c in items
+    ]}
+
+
+@router.delete("/admin/customers/{key_hash}", dependencies=[Depends(_require_admin)])
+async def revoke_customer(key_hash: str):
+    revoked = customer_registry.revoke(key_hash)
+    return {"revoked": revoked}

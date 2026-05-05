@@ -81,14 +81,21 @@ def _treasury_address() -> str:
 _TIMEOUT = 15
 
 
-def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amount_usd: float) -> dict:
+def ofac_screen(
+    vendor_name: str,
+    vendor_wallet: str,
+    vendor_country: str,
+    amount_usd: float,
+    originator_name: str = "",
+    originator_country: str = "",
+) -> dict:
     resp = _session().post(
         MRU_TRAVEL_RULE_URL,
         json={
             "originator": {
                 "address": _treasury_address(),
-                "name": ORIGINATOR_NAME,
-                "country_code": ORIGINATOR_COUNTRY,
+                "name": originator_name or ORIGINATOR_NAME,
+                "country_code": originator_country or ORIGINATOR_COUNTRY,
             },
             "beneficiary": {
                 "address": vendor_wallet,

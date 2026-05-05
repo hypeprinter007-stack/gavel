@@ -59,6 +59,7 @@ Resources:
           ORIGINATOR_NAME: Counsel Demo Client
           ORIGINATOR_COUNTRY: US
           ENFORCE_OFFICER_REGISTRY: "true"
+          ENFORCE_CUSTOMER_AUTH: "true"
           EVIDENCE_VAULT_BUCKET: !Ref EvidenceVault
           # Sensitive runtime values (wallet keys, API tokens) are NOT
           # in env vars — they live in Secrets Manager and are fetched

@@ -7,6 +7,9 @@ Default: client pays in Base USDC, EVM officer signs with EIP-712 typed data.
                     rejects with 403 even though the cryptographic
                     signature itself is mathematically valid. Demonstrates
                     the officer allowlist enforcement.
+--rogue-customer  : drop the X-Counsel-API-Key header — server rejects
+                    with 401 before x402 is ever charged. Demonstrates
+                    customer authentication enforcement.
 """
 import json
 import os
@@ -39,6 +42,7 @@ CLIENT_KEY = os.getenv("CLIENT_PRIVATE_KEY")
 OFFICER_KEY = os.getenv("OFFICER_PRIVATE_KEY")
 OFFICER_SOLANA_KEY = os.getenv("OFFICER_SOLANA_KEY")
 SOLANA_CLIENT_KEY = os.getenv("SOLANA_CLIENT_KEY")
+COUNSEL_API_KEY = os.getenv("COUNSEL_API_KEY", "")
 
 
 def _build_session(use_solana_pay: bool):
@@ -97,16 +101,20 @@ def _sign_evm_rogue(session_id: str, merkle_root: str, decision: str = "APPROVED
             "notes": "Unauthorized officer attempt."}
 
 
-def run(use_solana_pay: bool, use_solana_sign: bool, rogue: bool = False):
+def run(use_solana_pay: bool, use_solana_sign: bool, rogue: bool = False, rogue_customer: bool = False):
     session, payer_label = _build_session(use_solana_pay)
-    print(f"Payer:   {payer_label}")
+    print(f"Payer:    {payer_label}")
+    print(f"Customer: {'ROGUE (no API key) — expect 401' if rogue_customer else 'authenticated via X-Counsel-API-Key'}")
     if rogue:
-        print(f"Officer: ROGUE (fresh, unregistered) — expect 403 from allowlist enforcement")
+        print(f"Officer:  ROGUE (fresh, unregistered) — expect 403 from allowlist enforcement")
     else:
-        print(f"Officer: {'Solana Ed25519 (registered)' if use_solana_sign else 'EVM EIP-712 (registered)'}")
+        print(f"Officer:  {'Solana Ed25519 (registered)' if use_solana_sign else 'EVM EIP-712 (registered)'}")
 
     pay_chain = "Solana USDC" if use_solana_pay else "Base USDC"
     print(f"\nPOST /v1/diligence (paying $0.05 in {pay_chain})...")
+    headers: dict[str, str] = {}
+    if not rogue_customer and COUNSEL_API_KEY:
+        headers["X-Counsel-API-Key"] = COUNSEL_API_KEY
     resp = session.post(
         f"{API_URL}/v1/diligence",
         json={
@@ -115,11 +123,18 @@ def run(use_solana_pay: bool, use_solana_sign: bool, rogue: bool = False):
             "vendor_wallet": "0x0360D000622F942b9656D59c679D19d5D12ec989",
             "amount_usd": 50000,
         },
+        headers=headers,
         timeout=120,
     )
     print(f"Status: {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"Body: {resp.text}")
+        return
     data = resp.json()
     print(f"\nsession_id:      {data.get('session_id')}")
+    if data.get("customer"):
+        c = data["customer"]
+        print(f"customer:        {c['name']} ({c['country']}) — tenant '{data.get('tenant')}'")
     print(f"merkle_root:     {data.get('merkle_root')}")
     anchors = data.get("anchors") or {}
     if anchors.get("base"):
@@ -152,4 +167,5 @@ if __name__ == "__main__":
         use_solana_pay="--solana-pay" in args,
         use_solana_sign="--solana-sign" in args,
         rogue="--rogue-officer" in args,
+        rogue_customer="--rogue-customer" in args,
     )

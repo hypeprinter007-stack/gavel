@@ -72,15 +72,19 @@ def _vault_put(key: str, body: bytes, content_type: str) -> dict:
     }
 
 
-def new_session(vendor_name: str) -> str:
+def new_session(vendor_name: str, tenant: str = "counsel", customer: str = "") -> str:
     session_id = str(uuid.uuid4())
-    _table().put_item(Item={
+    item = {
         "pk": f"session#{session_id}",
         "type": "session_root",
         "vendor_name": vendor_name,
+        "tenant": tenant,
         "started_at": int(time.time()),
         "status": "pending",
-    })
+    }
+    if customer:
+        item["customer"] = customer
+    _table().put_item(Item=item)
     return session_id
 
 

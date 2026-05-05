@@ -78,11 +78,13 @@ async def officer_sign(session_id: str, req: OfficerSignRequest):
         session_id, merkle_root, req.decision, req.signature, req.signer_pubkey
     )
 
-    if ENFORCE_OFFICER_REGISTRY and not officer_registry.is_authorized(signer):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Signer {signer} is not registered as an authorized compliance officer for this tenant",
-        )
+    if ENFORCE_OFFICER_REGISTRY:
+        tenant = session.get("tenant", officer_registry.DEFAULT_TENANT)
+        if not officer_registry.is_authorized(signer, tenant=tenant):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Signer {signer} is not a registered compliance officer for tenant '{tenant}'",
+            )
 
     try:
         evidence_store.record_approval(session_id, req.decision, req.signature, req.notes or "", signer)

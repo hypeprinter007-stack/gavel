@@ -72,13 +72,18 @@ async def x402_mw(request, call_next):
     return await payment_middleware(x402_routes, x402_server)(request, call_next)
 
 
-# Idempotency middleware MUST be declared after x402_mw so that FastAPI
-# runs it FIRST (last-registered = outermost). A cached hit returns
-# the prior response without re-charging the customer for x402.
+# Middleware layering note (FastAPI: last registered = outermost):
+#   inner ──▶ outer execution order
+#   x402_mw ◀ idempotency_mw ◀ api_key_mw   (declared in this order)
+# So a request flows: api_key check → idempotency cache → x402 → handler.
+# Reasoning: 401 (unauth) before 402 (payment), and 200 (cache hit)
+# before 402 — neither should trigger a charge.
 import json as _json
 
 from fastapi.responses import JSONResponse, Response
-from services import idempotency
+from services import customer_registry, idempotency
+
+ENFORCE_CUSTOMER_AUTH = os.getenv("ENFORCE_CUSTOMER_AUTH", "true").lower() == "true"
 
 
 @app.middleware("http")
@@ -124,6 +129,30 @@ async def idempotency_mw(request, call_next):
             media_type=response.media_type,
         )
     return response
+
+
+@app.middleware("http")
+async def api_key_mw(request, call_next):
+    """Authenticate the requesting institution before x402 charges."""
+    if not (request.method == "POST" and request.url.path == "/v1/diligence"):
+        return await call_next(request)
+    if not ENFORCE_CUSTOMER_AUTH:
+        return await call_next(request)
+
+    api_key = request.headers.get("x-counsel-api-key") or request.headers.get("X-Counsel-API-Key")
+    if not api_key:
+        return JSONResponse(
+            {"detail": "Missing X-Counsel-API-Key header. Register a customer via /v1/admin/customers."},
+            status_code=401,
+        )
+    customer = customer_registry.lookup(api_key)
+    if not customer:
+        return JSONResponse(
+            {"detail": "Invalid or revoked customer API key"},
+            status_code=401,
+        )
+    request.state.customer = customer
+    return await call_next(request)
 
 
 @app.get("/health")

@@ -2,7 +2,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from models import DiligenceRequest
 from services import bazaar_client, bedrock_client, evidence_store
@@ -27,15 +27,23 @@ def _call_bazaar(fn, *args, **kwargs):
 
 
 @router.post("/diligence")
-async def run_diligence(req: DiligenceRequest):
-    session_id = evidence_store.new_session(req.vendor_name)
-    log.info("diligence start session=%s vendor=%s country=%s amount=%s",
-             session_id, req.vendor_name, req.vendor_country, req.amount_usd)
+async def run_diligence(req: DiligenceRequest, request: Request):
+    customer = getattr(request.state, "customer", None) or {}
+    originator_name = customer.get("customer_name", "")
+    originator_country = customer.get("customer_country", "")
+    tenant = customer.get("tenant", "counsel")
+
+    session_id = evidence_store.new_session(req.vendor_name, tenant=tenant,
+                                             customer=customer.get("customer_name", ""))
+    log.info("diligence start session=%s vendor=%s country=%s amount=%s customer=%s",
+             session_id, req.vendor_name, req.vendor_country, req.amount_usd,
+             customer.get("customer_name", "anonymous"))
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
             pool.submit(_call_bazaar, bazaar_client.ofac_screen,
-                        req.vendor_name, req.vendor_wallet, req.vendor_country, req.amount_usd): "mru_travel_rule",
+                        req.vendor_name, req.vendor_wallet, req.vendor_country, req.amount_usd,
+                        originator_name, originator_country): "mru_travel_rule",
             pool.submit(_call_bazaar, bazaar_client.trade_finance_risk,
                         req.amount_usd, req.vendor_country): "orbis_trade_finance",
             pool.submit(_call_bazaar, bazaar_client.embedded_finance_score,
@@ -76,6 +84,15 @@ async def run_diligence(req: DiligenceRequest):
 
     return {
         "session_id": session_id,
+        "tenant": tenant,
+        "customer": (
+            {
+                "name": customer.get("customer_name"),
+                "country": customer.get("customer_country"),
+                "key_hash": customer.get("key_hash"),
+            }
+            if customer else None
+        ),
         "vendor": req.vendor_name,
         "evidence": evidence,
         "synthesis": synthesis,
