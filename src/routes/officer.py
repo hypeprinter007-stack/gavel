@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from ..models import OfficerSignRequest
-from ..services import evidence_store
+from models import OfficerSignRequest
+from services import evidence_store
 
 router = APIRouter()
 

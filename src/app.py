@@ -6,8 +6,8 @@ load_dotenv()
 from fastapi import FastAPI
 from mangum import Mangum
 
-from .routes.diligence import router as diligence_router
-from .routes.officer import router as officer_router
+from routes.diligence import router as diligence_router
+from routes.officer import router as officer_router
 
 app = FastAPI(title="Counsel", description="Decision integrity layer for institutional AI agents")
 
@@ -16,7 +16,7 @@ TREASURY = os.getenv("TREASURY_ADDRESS", "")
 from x402.http.middleware.fastapi import payment_middleware, RouteConfig
 from x402.http import HTTPFacilitatorClient, FacilitatorConfig, PaymentOption
 from x402.server import x402ResourceServer
-from .services.cdp_auth import _build_cdp_auth_provider
+from services.cdp_auth import _build_cdp_auth_provider
 
 facilitator = HTTPFacilitatorClient(
     FacilitatorConfig(

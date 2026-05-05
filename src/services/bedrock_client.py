@@ -11,7 +11,7 @@ _client = None
 def _bedrock():
     global _client
     if _client is None:
-        _client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        _client = boto3.client("bedrock-runtime", region_name=os.getenv("BEDROCK_REGION", "us-east-1"))
     return _client
 
 
@@ -37,4 +37,7 @@ Return only valid JSON."""
     )
 
     output = response["output"]["message"]["content"][0]["text"]
+    # Strip markdown code fences if present
+    if output.startswith("```"):
+        output = output.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     return output, prompt_hash

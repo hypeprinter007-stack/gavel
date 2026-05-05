@@ -2,8 +2,8 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
-from ..models import DiligenceRequest
-from ..services import bazaar_client, bedrock_client, evidence_store
+from models import DiligenceRequest
+from services import bazaar_client, bedrock_client, evidence_store
 
 router = APIRouter()
 

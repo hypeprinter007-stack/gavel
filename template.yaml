@@ -37,7 +37,7 @@ Resources:
           TREASURY_PRIVATE_KEY: !Ref TreasuryPrivateKey
           CDP_API_KEY_ID: !Ref CdpApiKeyId
           CDP_API_KEY_SECRET: !Ref CdpApiKeySecret
-          AWS_REGION: us-east-1
+          BEDROCK_REGION: us-east-1
       Events:
         ApiEvent:
           Type: HttpApi

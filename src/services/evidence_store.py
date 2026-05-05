@@ -13,7 +13,7 @@ _db = None
 def _table():
     global _db
     if _db is None:
-        _db = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")).Table(TABLE)
+        _db = boto3.resource("dynamodb", region_name=os.getenv("BEDROCK_REGION", "us-east-1")).Table(TABLE)
     return _db
 
 
