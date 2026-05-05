@@ -1,4 +1,5 @@
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter
@@ -7,6 +8,7 @@ from models import DiligenceRequest
 from services import bazaar_client, bedrock_client, evidence_store
 
 router = APIRouter()
+log = logging.getLogger("counsel.diligence")
 
 # Maps provider ID (DynamoDB source key) to friendly name (API response key)
 PROVIDERS = {
@@ -20,12 +22,15 @@ def _call_bazaar(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
     except Exception as e:
-        return {"error": str(e)}
+        log.warning("bazaar call failed: %s -> %s: %s", fn.__name__, type(e).__name__, e)
+        return {"error": str(e), "error_type": type(e).__name__}
 
 
 @router.post("/diligence")
 async def run_diligence(req: DiligenceRequest):
     session_id = evidence_store.new_session(req.vendor_name)
+    log.info("diligence start session=%s vendor=%s country=%s amount=%s",
+             session_id, req.vendor_name, req.vendor_country, req.amount_usd)
 
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
@@ -66,6 +71,8 @@ async def run_diligence(req: DiligenceRequest):
     merkle_root, anchor_tx, solana_anchor_tx = evidence_store.finalize_session(
         session_id, evidence_hashes, synthesis_hash
     )
+    log.info("diligence done session=%s merkle=%s base=%s solana=%s",
+             session_id, merkle_root, anchor_tx, solana_anchor_tx or "skipped")
 
     return {
         "session_id": session_id,

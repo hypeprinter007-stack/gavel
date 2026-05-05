@@ -1,11 +1,14 @@
 import hashlib
 import json
+import logging
 import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import boto3
+
+log = logging.getLogger("counsel.evidence")
 
 TABLE = os.getenv("EVIDENCE_TABLE", "counsel-evidence")
 BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
@@ -142,7 +145,8 @@ def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash
         base_tx = f_base.result(timeout=30)
         try:
             solana_tx = f_sol.result(timeout=20)
-        except Exception:
+        except Exception as e:
+            log.warning("solana anchor failed: %s: %s", type(e).__name__, e)
             solana_tx = None
 
     update_expr = "SET merkle_root = :m, anchor_tx = :t"

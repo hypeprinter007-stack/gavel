@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -5,6 +6,11 @@ load_dotenv()
 
 from fastapi import FastAPI
 from mangum import Mangum
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 from routes.diligence import router as diligence_router
 from routes.officer import router as officer_router
