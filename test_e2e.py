@@ -14,10 +14,13 @@ from x402.http.clients.requests import x402_requests
 
 API_URL = "https://ki55wa4a21.execute-api.us-east-1.amazonaws.com"
 CLIENT_KEY = os.getenv("CLIENT_PRIVATE_KEY")
+OFFICER_KEY = os.getenv("OFFICER_PRIVATE_KEY")
 
 def run():
     acct = Account.from_key(CLIENT_KEY)
-    print(f"Paying from: {acct.address}  (client wallet)")
+    officer = Account.from_key(OFFICER_KEY)
+    print(f"Client (payer):    {acct.address}")
+    print(f"Officer (signer):  {officer.address}")
 
     signer = EthAccountSigner(acct)
     client = x402ClientSync()
@@ -59,9 +62,9 @@ def run():
     print(json.dumps(r2.json(), indent=2))
 
     if merkle_root:
-        print(f"\nSigning merkle_root with client wallet (officer)...")
+        print(f"\nOfficer ({officer.address}) signs merkle_root...")
         msg = encode_defunct(text=merkle_root)
-        signed_msg = acct.sign_message(msg)
+        signed_msg = officer.sign_message(msg)
         sig_hex = signed_msg.signature.hex()
         print(f"Signature: 0x{sig_hex[:20]}...")
 

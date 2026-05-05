@@ -9,6 +9,9 @@ from x402.http.clients.requests import x402_requests
 from eth_account import Account
 
 TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY", "")
+MRU_TRAVEL_RULE_URL = os.getenv("MRU_TRAVEL_RULE_URL", "https://mru-oracle.com/compliance/travel-rule")
+ORBIS_TRADE_URL = os.getenv("ORBIS_TRADE_URL", "https://orbisapi.com/proxy/trade-finance-risk-score-api-d53631/score")
+ORBIS_EMBEDDED_URL = os.getenv("ORBIS_EMBEDDED_URL", "https://orbisapi.com/proxy/embedded-finance-score-api-a69119/analyze")
 
 
 def _session() -> _requests.Session:
@@ -24,7 +27,7 @@ _TIMEOUT = 15
 
 def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amount_usd: float) -> dict:
     resp = _session().post(
-        "https://mru-oracle.com/compliance/travel-rule",
+        MRU_TRAVEL_RULE_URL,
         json={
             "originator": {
                 "address": Account.from_key(TREASURY_KEY).address,
@@ -47,7 +50,7 @@ def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amoun
 
 def trade_finance_risk(amount_usd: float, country_risk: str = "medium") -> dict:
     resp = _session().post(
-        "https://orbisapi.com/proxy/trade-finance-risk-score-api-d53631/score",
+        ORBIS_TRADE_URL,
         json={
             "transactionValueUsd": amount_usd,
             "buyerCountryRisk": country_risk,
@@ -63,7 +66,7 @@ def trade_finance_risk(amount_usd: float, country_risk: str = "medium") -> dict:
 
 def embedded_finance_score(jurisdiction: str = "other") -> dict:
     resp = _session().post(
-        "https://orbisapi.com/proxy/embedded-finance-score-api-a69119/analyze",
+        ORBIS_EMBEDDED_URL,
         json={
             "complianceFrameworks": 3,
             "kycAmlLevel": "enhanced",

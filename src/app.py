@@ -8,6 +8,7 @@ from mangum import Mangum
 
 from routes.diligence import router as diligence_router
 from routes.officer import router as officer_router
+from routes.stub import router as stub_router
 
 app = FastAPI(title="Counsel", description="Decision integrity layer for institutional AI agents")
 
@@ -54,5 +55,6 @@ def health():
 
 app.include_router(diligence_router, prefix="/v1")
 app.include_router(officer_router, prefix="/v1")
+app.include_router(stub_router, prefix="/v1")
 
 handler = Mangum(app)
