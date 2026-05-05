@@ -1,0 +1,17 @@
+{
+  "id": "solana_aml_checker",
+  "name": "SOLANA AML Checker",
+  "intent": "wallet_screening",
+  "url": "https://api.solana-aml-checker.io/v1/screen",
+  "method": "POST",
+  "price_usd": 0.001,
+  "network": "solana:mainnet",
+  "description": "Open-source AML compliance and risk assessment tool for Solana. Screens wallets and NFTs against sanctions lists and known-bad-actor sets.",
+  "input_schema": {
+    "wallet_address": "string",
+    "include_nft_holdings": "boolean"
+  },
+  "output_fields": ["risk_level", "flags", "associated_addresses", "nft_risk_summary"],
+  "tags": ["aml", "open_source", "wallet_screening", "nft", "free_tier"],
+  "status": "registered_pending_integration"
+}

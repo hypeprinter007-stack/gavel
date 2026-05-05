@@ -60,11 +60,30 @@ That's it. `resolve("kyc_verification")` will include your provider automaticall
 
 ## Built-in providers
 
+The registry uses CAIP-2 chain identifiers, so the same `resolve(intent)` call returns providers across multiple chains. Counsel routes payment to the right network automatically.
+
+**Base (`eip155:8453`)** — live integrations
+
 | Provider | Intent | Price |
 |----------|--------|-------|
 | MRU SENTINEL Travel Rule | `travel_rule_compliance` | $0.005 |
 | Orbis Trade Finance Risk | `trade_finance_risk` | $0.005 |
 | Orbis Embedded Finance Score | `embedded_finance_compliance` | $0.005 |
+
+**Solana (`solana:mainnet`)** — registered, integration pending
+
+| Provider | Intent | Price |
+|----------|--------|-------|
+| Scorechain Solana AML | `wallet_screening` | $0.01 |
+| Solana Attestation Service | `kyc_attestation` | $0.005 |
+| SOLANA AML Checker | `wallet_screening` | $0.001 |
+
+```python
+from gavel_toolkit.discovery import resolve
+resolve("wallet_screening")
+# [{"id": "solana_aml_checker", "network": "solana:mainnet", ...},
+#  {"id": "scorechain_solana_aml", "network": "solana:mainnet", ...}]
+```
 
 ## Fork and customize
 

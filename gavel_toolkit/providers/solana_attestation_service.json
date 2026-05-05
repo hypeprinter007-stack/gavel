@@ -1,0 +1,19 @@
+{
+  "id": "solana_attestation_service",
+  "name": "Solana Attestation Service",
+  "intent": "kyc_attestation",
+  "url": "https://attestation-service.solana.com/v1/issue",
+  "method": "POST",
+  "price_usd": 0.005,
+  "network": "solana:mainnet",
+  "description": "Permissionless protocol for trusted issuers to associate off-chain KYC verification with a Solana wallet. Attestations are signed, verifiable, and reusable across applications.",
+  "input_schema": {
+    "subject_wallet": "string",
+    "attestation_type": "enum:kyc_basic|kyc_enhanced|aml_clear|accredited_investor",
+    "issuer_id": "string",
+    "evidence_hash": "string"
+  },
+  "output_fields": ["attestation_id", "subject_wallet", "issuer", "valid_until", "onchain_address"],
+  "tags": ["kyc", "attestation", "onchain", "reusable", "credential"],
+  "status": "registered_pending_integration"
+}

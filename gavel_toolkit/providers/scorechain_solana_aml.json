@@ -1,0 +1,18 @@
+{
+  "id": "scorechain_solana_aml",
+  "name": "Scorechain Solana AML API",
+  "intent": "wallet_screening",
+  "url": "https://api.scorechain.com/v1/solana/aml/score",
+  "method": "POST",
+  "price_usd": 0.01,
+  "network": "solana:mainnet",
+  "description": "Real-time AML monitoring and risk scoring for Solana wallets and SPL tokens. Screens against OFAC, EU, UN, and custom watchlists.",
+  "input_schema": {
+    "wallet_address": "string",
+    "spl_token_mint": "string?",
+    "include_counterparties": "boolean"
+  },
+  "output_fields": ["risk_score", "tier", "watchlist_hits", "counterparty_summary", "last_activity"],
+  "tags": ["aml", "sanctions", "wallet_screening", "ofac", "spl_token"],
+  "status": "registered_pending_integration"
+}
