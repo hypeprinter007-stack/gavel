@@ -72,7 +72,14 @@ async def officer_sign(session_id: str, req: OfficerSignRequest):
     merkle_root = session.get("merkle_root", "")
     signer, scheme = _verify_signature(merkle_root, req.signature, req.signer_pubkey)
 
-    evidence_store.record_approval(session_id, req.decision, req.signature, req.notes or "", signer)
+    try:
+        evidence_store.record_approval(session_id, req.decision, req.signature, req.notes or "", signer)
+    except Exception as e:
+        # ConditionalCheckFailedException — another signer beat us between
+        # the get_session check above and the conditional update.
+        if "ConditionalCheckFailed" in repr(e):
+            raise HTTPException(status_code=409, detail="Session already decided")
+        raise
 
     return {
         "session_id": session_id,

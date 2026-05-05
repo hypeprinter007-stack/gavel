@@ -158,22 +158,29 @@ def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash
     return merkle_root, base_tx, solana_tx
 
 
-def record_approval(session_id: str, decision: str, signature: str, notes: str = "", signer_address: str = "") -> None:
+def record_approval(session_id: str, decision: str, signature: str, notes: str = "", signer: str = "") -> None:
+    """Atomic claim: only succeeds if the session is still pending.
+
+    Raises botocore.exceptions.ClientError (ConditionalCheckFailedException)
+    if another concurrent request already decided the session — the caller
+    should translate this into a 409.
+    """
+    _table().update_item(
+        Key={"pk": f"session#{session_id}"},
+        UpdateExpression="SET #s = :s, signer = :a",
+        ConditionExpression="#s = :pending",
+        ExpressionAttributeNames={"#s": "status"},
+        ExpressionAttributeValues={":s": decision, ":a": signer, ":pending": "pending"},
+    )
     _table().put_item(Item={
         "pk": f"session#{session_id}#approval",
         "type": "approval",
         "decision": decision,
         "signature": signature,
-        "signer_address": signer_address,
+        "signer": signer,
         "notes": notes,
         "decided_at": int(time.time()),
     })
-    _table().update_item(
-        Key={"pk": f"session#{session_id}"},
-        UpdateExpression="SET #s = :s, signer_address = :a",
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={":s": decision, ":a": signer_address},
-    )
 
 
 def get_session(session_id: str) -> dict:

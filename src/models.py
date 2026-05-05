@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 
 
 class DiligenceRequest(BaseModel):
@@ -10,9 +10,12 @@ class DiligenceRequest(BaseModel):
     amount_usd: float = 50000
 
 
+Decision = Literal["APPROVED", "REJECTED"]
+
+
 class OfficerSignRequest(BaseModel):
     signature: str
-    decision: str  # "APPROVED" | "REJECTED"
+    decision: Decision
     notes: Optional[str] = None
     # If signer_pubkey is provided, signature is treated as Ed25519 (Solana wallet);
     # otherwise it's verified as EIP-191 personal_sign and the signer address
