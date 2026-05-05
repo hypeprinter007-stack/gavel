@@ -8,7 +8,11 @@ from x402.mechanisms.evm.signers import EthAccountSigner
 from x402.http.clients.requests import x402_requests
 from eth_account import Account
 
-TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY", "")
+from services import secrets
+
+
+def _treasury_key() -> str:
+    return secrets.get("treasury_evm_key", env_fallback="TREASURY_PRIVATE_KEY")
 MRU_TRAVEL_RULE_URL = os.getenv("MRU_TRAVEL_RULE_URL", "https://mru-oracle.com/compliance/travel-rule")
 ORBIS_TRADE_URL = os.getenv("ORBIS_TRADE_URL", "https://orbisapi.com/proxy/trade-finance-risk-score-api-d53631/score")
 ORBIS_EMBEDDED_URL = os.getenv("ORBIS_EMBEDDED_URL", "https://orbisapi.com/proxy/embedded-finance-score-api-a69119/analyze")
@@ -59,7 +63,7 @@ def _session() -> _requests.Session:
     """Lazy-init x402 session; reused across calls in the same Lambda container."""
     global _cached_session
     if _cached_session is None:
-        acct = Account.from_key(TREASURY_KEY)
+        acct = Account.from_key(_treasury_key())
         signer = EthAccountSigner(acct)
         client = x402ClientSync()
         client.register("eip155:8453", ExactEvmClientScheme(signer))
@@ -70,7 +74,7 @@ def _session() -> _requests.Session:
 def _treasury_address() -> str:
     global _cached_treasury_address
     if _cached_treasury_address is None:
-        _cached_treasury_address = Account.from_key(TREASURY_KEY).address
+        _cached_treasury_address = Account.from_key(_treasury_key()).address
     return _cached_treasury_address
 
 

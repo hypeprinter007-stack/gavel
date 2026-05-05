@@ -11,11 +11,19 @@ import boto3
 
 log = logging.getLogger("counsel.evidence")
 
+from services import secrets
+
 TABLE = os.getenv("EVIDENCE_TABLE", "counsel-evidence")
 BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
-TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY")
 SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
-SOLANA_TREASURY_KEY = os.getenv("SOLANA_TREASURY_KEY")
+
+
+def _treasury_evm_key() -> str:
+    return secrets.get("treasury_evm_key", env_fallback="TREASURY_PRIVATE_KEY")
+
+
+def _treasury_solana_key() -> str:
+    return secrets.get("treasury_solana_key", env_fallback="SOLANA_TREASURY_KEY")
 EVIDENCE_VAULT_BUCKET = os.getenv("EVIDENCE_VAULT_BUCKET", "")
 EVIDENCE_RETENTION_DAYS = int(os.getenv("EVIDENCE_RETENTION_DAYS", "2555"))  # 7y default
 _db = None
@@ -148,7 +156,8 @@ def anchor_to_base(merkle_root: str) -> str:
     """Posts merkle_root as calldata to Base. Returns tx hash."""
     from web3 import Web3
     w3 = Web3(Web3.HTTPProvider(BASE_RPC_URL))
-    acct = w3.eth.account.from_key(TREASURY_KEY)
+    key = _treasury_evm_key()
+    acct = w3.eth.account.from_key(key)
     nonce = w3.eth.get_transaction_count(acct.address)
     gas_price = w3.eth.gas_price
     tx = {
@@ -162,7 +171,7 @@ def anchor_to_base(merkle_root: str) -> str:
         "maxPriorityFeePerGas": w3.to_wei(0.001, "gwei"),
     }
     tx["gas"] = w3.eth.estimate_gas(tx)
-    signed = w3.eth.account.sign_transaction(tx, TREASURY_KEY)
+    signed = w3.eth.account.sign_transaction(tx, key)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     return "0x" + tx_hash.hex()
 
@@ -181,10 +190,11 @@ def anchor_to_solana(merkle_root: str) -> str:
     from solders.pubkey import Pubkey
     from solders.transaction import Transaction
 
-    if not SOLANA_TREASURY_KEY:
-        raise RuntimeError("SOLANA_TREASURY_KEY not set")
+    sol_key = _treasury_solana_key()
+    if not sol_key:
+        raise RuntimeError("Solana treasury key not configured (Secrets Manager + env both empty)")
 
-    kp = Keypair.from_bytes(base58.b58decode(SOLANA_TREASURY_KEY))
+    kp = Keypair.from_bytes(base58.b58decode(sol_key))
 
     def _rpc(method, params, retries: int = 2):
         """One retry with 1s backoff — public mainnet RPC 503s under burst load."""

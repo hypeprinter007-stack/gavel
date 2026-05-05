@@ -3,28 +3,30 @@
 Auth: bearer token via ADMIN_API_KEY env var. Without it set, all
 endpoints return 503 — fail closed instead of fail open.
 """
-import os
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from services import officer_registry
+from services import officer_registry, secrets
 
 router = APIRouter()
 
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+def _admin_api_key() -> str:
+    return secrets.get("admin_api_key", env_fallback="ADMIN_API_KEY")
 
 
 def _require_admin(authorization: Optional[str] = Header(None)) -> None:
-    if not ADMIN_API_KEY:
-        raise HTTPException(status_code=503, detail="Admin API not configured (ADMIN_API_KEY unset)")
+    expected = _admin_api_key()
+    if not expected:
+        raise HTTPException(status_code=503, detail="Admin API not configured")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing bearer token")
     token = authorization[len("Bearer ") :]
     # constant-time comparison to deter token-length / timing inference
     import hmac
-    if not hmac.compare_digest(token, ADMIN_API_KEY):
+    if not hmac.compare_digest(token, expected):
         raise HTTPException(status_code=403, detail="Invalid admin token")
 
 
