@@ -77,7 +77,13 @@ Resources:
               Action:
                 - bedrock:InvokeModel
                 - bedrock:InvokeModelWithResponseStream
-              Resource: '*'
+              # Scoped to Claude Haiku family + cross-region inference
+              # profiles in our AWS account. Wildcards on region cover the
+              # cross-region fanout from us.* profiles into us-east-1 /
+              # us-east-2 / us-west-2 without enumerating each ARN by hand.
+              Resource:
+                - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-*'
+                - !Sub 'arn:aws:bedrock:*:${AWS::AccountId}:inference-profile/us.anthropic.claude-haiku-*'
 
   EvidenceTable:
     Type: AWS::Serverless::SimpleTable

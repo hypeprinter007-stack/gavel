@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+mangum
+boto3
+x402[evm,svm,fastapi]
+cryptography
+pydantic
+python-dotenv
+web3
+solders
+base58
