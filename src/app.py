@@ -12,6 +12,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
+from routes.admin import router as admin_router
 from routes.diligence import router as diligence_router
 from routes.officer import router as officer_router
 from routes.stub import router as stub_router
@@ -79,5 +80,6 @@ def health():
 app.include_router(diligence_router, prefix="/v1")
 app.include_router(officer_router, prefix="/v1")
 app.include_router(stub_router, prefix="/v1")
+app.include_router(admin_router, prefix="/v1")
 
 handler = Mangum(app)

@@ -32,6 +32,11 @@ Parameters:
     Type: String
     Default: ki55wa4a21
     Description: HttpApi ID for self-referenced stub URLs. SAM auto-creates the api as ServerlessHttpApi; we can't !Sub it into the function's env vars without a circular dep, so it's overridable here.
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Description: Bearer token gating /v1/admin/* endpoints. Empty disables admin (fail-closed).
+    Default: ""
 
 Resources:
   CounselFunction:
@@ -56,6 +61,8 @@ Resources:
           SOLANA_TREASURY_ADDRESS: !Ref SolanaTreasuryAddress
           ORIGINATOR_NAME: Counsel Demo Client
           ORIGINATOR_COUNTRY: US
+          ADMIN_API_KEY: !Ref AdminApiKey
+          ENFORCE_OFFICER_REGISTRY: "true"
       Events:
         ApiEvent:
           Type: HttpApi

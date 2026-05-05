@@ -1,9 +1,12 @@
 """End-to-end test for Counsel.
 
-Default: client pays in Base USDC, officer signs with EVM wallet.
-With --solana-pay: client pays in Solana USDC.
-With --solana-sign: officer signs with Solana wallet (Ed25519).
-Combine flags for fully Solana-only flow.
+Default: client pays in Base USDC, EVM officer signs with EIP-712 typed data.
+--solana-pay      : client pays in Solana USDC instead of Base.
+--solana-sign     : Solana officer signs (domain-separated Ed25519).
+--rogue-officer   : a fresh, UNREGISTERED keypair tries to sign — server
+                    rejects with 403 even though the cryptographic
+                    signature itself is mathematically valid. Demonstrates
+                    the officer allowlist enforcement.
 """
 import json
 import os
@@ -34,6 +37,7 @@ SOLANA_MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 
 CLIENT_KEY = os.getenv("CLIENT_PRIVATE_KEY")
 OFFICER_KEY = os.getenv("OFFICER_PRIVATE_KEY")
+OFFICER_SOLANA_KEY = os.getenv("OFFICER_SOLANA_KEY")
 SOLANA_CLIENT_KEY = os.getenv("SOLANA_CLIENT_KEY")
 
 
@@ -62,13 +66,17 @@ def _sign_evm(session_id: str, merkle_root: str, decision: str = "APPROVED") -> 
             "notes": "Travel rule clear. Proceed with enhanced monitoring."}
 
 
-def _sign_solana(session_id: str, merkle_root: str, decision: str = "APPROVED") -> dict:
-    # Generate a fresh Solana officer keypair — "Phantom wallet officer"
-    # path. No funding needed; signing is off-chain.
-    officer = SolanaKeypair()
+def _sign_solana(session_id: str, merkle_root: str, decision: str = "APPROVED",
+                 rogue: bool = False) -> dict:
+    if rogue or not OFFICER_SOLANA_KEY:
+        officer = SolanaKeypair()  # fresh, unregistered → expect 403
+        label = "ROGUE (unregistered)"
+    else:
+        officer = SolanaKeypair.from_bytes(base58.b58decode(OFFICER_SOLANA_KEY))
+        label = "registered"
     msg_bytes = solana_message(session_id, merkle_root, decision)
     sig = officer.sign_message(msg_bytes)
-    print(f"Officer (Solana, {officer.pubkey()}) signs domain-separated Counsel approval...")
+    print(f"Officer (Solana {label}, {officer.pubkey()}) signs domain-separated Counsel approval...")
     return {
         "signature": base58.b58encode(bytes(sig)).decode(),
         "signer_pubkey": str(officer.pubkey()),
@@ -77,10 +85,25 @@ def _sign_solana(session_id: str, merkle_root: str, decision: str = "APPROVED") 
     }
 
 
-def run(use_solana_pay: bool, use_solana_sign: bool):
+def _sign_evm_rogue(session_id: str, merkle_root: str, decision: str = "APPROVED") -> dict:
+    """A fresh EVM keypair signs the canonical approval; should be rejected
+    by the officer registry with 403 even though the signature is valid."""
+    rogue = Account.create()
+    typed = evm_typed_data(session_id, merkle_root, decision)
+    msg = encode_typed_data(full_message=typed)
+    sig = rogue.sign_message(msg).signature.hex()
+    print(f"Officer (EVM ROGUE, {rogue.address}) signs valid EIP-712 — registry should reject...")
+    return {"signature": "0x" + sig, "decision": decision,
+            "notes": "Unauthorized officer attempt."}
+
+
+def run(use_solana_pay: bool, use_solana_sign: bool, rogue: bool = False):
     session, payer_label = _build_session(use_solana_pay)
-    print(f"Payer:  {payer_label}")
-    print(f"Officer: {'Solana Ed25519 (fresh keypair)' if use_solana_sign else 'EVM EIP-712'}")
+    print(f"Payer:   {payer_label}")
+    if rogue:
+        print(f"Officer: ROGUE (fresh, unregistered) — expect 403 from allowlist enforcement")
+    else:
+        print(f"Officer: {'Solana Ed25519 (registered)' if use_solana_sign else 'EVM EIP-712 (registered)'}")
 
     pay_chain = "Solana USDC" if use_solana_pay else "Base USDC"
     print(f"\nPOST /v1/diligence (paying $0.05 in {pay_chain})...")
@@ -112,7 +135,12 @@ def run(use_solana_pay: bool, use_solana_sign: bool):
         return
 
     print("\n--- Officer review ---")
-    payload = _sign_solana(session_id, merkle_root) if use_solana_sign else _sign_evm(session_id, merkle_root)
+    if use_solana_sign:
+        payload = _sign_solana(session_id, merkle_root, rogue=rogue)
+    elif rogue:
+        payload = _sign_evm_rogue(session_id, merkle_root)
+    else:
+        payload = _sign_evm(session_id, merkle_root)
     r3 = session.post(f"{API_URL}/v1/officer/{session_id}/sign", json=payload, timeout=20)
     print(f"\nPOST /v1/officer/{session_id}/sign — {r3.status_code}")
     print(json.dumps(r3.json(), indent=2))
@@ -120,4 +148,8 @@ def run(use_solana_pay: bool, use_solana_sign: bool):
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    run(use_solana_pay="--solana-pay" in args, use_solana_sign="--solana-sign" in args)
+    run(
+        use_solana_pay="--solana-pay" in args,
+        use_solana_sign="--solana-sign" in args,
+        rogue="--rogue-officer" in args,
+    )
