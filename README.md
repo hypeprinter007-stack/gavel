@@ -2,7 +2,9 @@
 
 **EasyA Consensus 2026 · Miami · Multi-chain on Base + Solana**
 
-Counsel is a compliance infrastructure layer for institutional AI agents. Pay in Base USDC or Solana USDC via x402, get a tamper-evident audit trail anchored on **both** chains every single call, and let a human officer sign off with **Metamask or Phantom**. Genuinely chain-neutral end-to-end.
+> Pay $0.05 in Base or Solana USDC via x402. Get an AI-synthesized vendor compliance recommendation grounded in three independent providers. Every decision lives forever as a Merkle root anchored on **both** Base and Solana mainnet, signed by an authorized human officer (Metamask or Phantom), evidence locked WORM in S3 for 7 years. Forging the chain requires breaking SHA-256 *and* the officer's private key *and* reorging two L1s.
+
+Counsel is the compliance + integrity vertical of the agentic API economy. Where [pay.sh](https://github.com/solana-foundation/pay) (Solana Foundation + Google Cloud, launched today) is horizontal infrastructure for any AI agent paying for any API, Counsel is the regulated-decisioning vertical built on the same x402 substrate.
 
 ---
 
@@ -62,43 +64,95 @@ Forging an approval requires breaking SHA256 *and* the officer's private key (se
 
 **API:** `https://ki55wa4a21.execute-api.us-east-1.amazonaws.com`
 
+### Prerequisites — first time only
+
+The institution and its compliance officers must be enrolled before they can use the API. This is one-time setup per tenant.
+
 ```bash
-pip install requests 'x402[evm,svm]' eth-account solders base58
-export CLIENT_PRIVATE_KEY=0x...        # EVM payer (for Base USDC)
-export SOLANA_CLIENT_KEY=...           # base58 Solana keypair (for Solana USDC)
-export OFFICER_PRIVATE_KEY=0x...       # optional, only for the EVM officer path
+# 1. Register a customer (returns an API key — shown ONCE)
+curl -X POST $API/v1/admin/customers \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"customer_name":"Acme Capital","customer_country":"US","tenant":"acme"}'
+# → ck_live_<random32>
 
-# Default: pay in Base, sign with EVM officer
-python test_e2e.py
+# 2. Enroll an EVM compliance officer
+curl -X POST $API/v1/admin/officers \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"signer":"0xFE70...","scheme":"eip712","tenant":"acme","label":"Jane Doe (CCO)"}'
 
-# Pay in Solana USDC, sign with a Phantom-style Solana wallet
-python test_e2e.py --solana-pay --solana-sign
+# 3. Enroll a Solana compliance officer (optional)
+curl -X POST $API/v1/admin/officers \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -d '{"signer":"A9LWeC...","scheme":"ed25519","tenant":"acme","label":"John Smith (Compliance)"}'
 ```
 
-**Sample response:**
+### Run a diligence call
+
+```bash
+pip install requests 'x402[evm,svm]' eth-account solders base58
+
+export CLIENT_PRIVATE_KEY=0x...        # EVM payer (for Base USDC)
+export SOLANA_CLIENT_KEY=...           # base58 Solana keypair (for Solana USDC, optional)
+export OFFICER_PRIVATE_KEY=0x...       # EVM officer (matches step 2 above)
+export OFFICER_SOLANA_KEY=...          # Solana officer (matches step 3, optional)
+export COUNSEL_API_KEY=ck_live_...     # from step 1 above
+
+# Default: pay in Base USDC, EVM officer signs EIP-712
+python test_e2e.py
+
+# Solana USDC payment + Phantom-style officer signs Ed25519
+python test_e2e.py --solana-pay --solana-sign
+
+# Demo enforcement failures live
+python test_e2e.py --rogue-customer    # 401 (no API key)   — before any x402 charge
+python test_e2e.py --rogue-officer     # 403 (not allowlisted) — after diligence runs
+```
+
+### Sample response
 
 ```json
 {
   "session_id": "6707f47b-ce61-4faf-9fa7-aef629adbff5",
+  "tenant": "acme",
+  "customer": {
+    "name": "Acme Capital",
+    "country": "US",
+    "key_hash": "04560d4b89..."
+  },
   "vendor": "Northstar Crypto Capital",
   "merkle_root": "ab0898397c86fbf97c99c6f8b29e55ab697315705777ee1d106e2dcb9bd686b3",
   "anchors": {
     "base": {
-      "tx": "0x7fb4d10770b74014d16d92d6349697c30dca1eabd6bbd85e93b2095444e9b263",
-      "explorer_url": "https://basescan.org/tx/0x7fb4d10770b74014d16d92d6349697c30dca1eabd6bbd85e93b2095444e9b263"
+      "tx": "0x7fb4d107...",
+      "explorer_url": "https://basescan.org/tx/0x7fb4d107..."
     },
     "solana": {
-      "tx": "sXsqoM2nuizMvjXn5VjynmUT1RWzE6jvvJxzhqHu8RabMeBenXqjVsFBDNYECVcBFa9EsBkfvzcoKep61WNLoxx",
-      "explorer_url": "https://solscan.io/tx/sXsqoM2nuizMvjXn5VjynmUT1RWzE6jvvJxzhqHu8RabMeBenXqjVsFBDNYECVcBFa9EsBkfvzcoKep61WNLoxx"
+      "tx": "sXsqoM2nu...",
+      "explorer_url": "https://solscan.io/tx/sXsqoM2nu..."
     }
   },
+  "evidence": { "travel_rule": {...}, "trade_finance_risk": {...}, "embedded_finance_score": {...} },
   "synthesis": {
     "risk_level": "low",
     "recommendation": "APPROVE",
-    "summary": "Northstar Crypto Capital presents a low-risk profile across all compliance dimensions...",
+    "summary": "...",
     "key_findings": [...]
   },
   "officer_url": "/v1/officer/6707f47b-ce61-4faf-9fa7-aef629adbff5"
+}
+```
+
+After the officer signs:
+
+```json
+{
+  "session_id": "6707f47b-...",
+  "decision": "APPROVED",
+  "signer": "0xFE708ED41DE893390240C95A801A49ed8F974702",
+  "signature_scheme": "eip712",
+  "merkle_root": "ab0898397c...",
+  "anchors": {"base": {...}, "solana": {...}},
+  "status": "recorded"
 }
 ```
 
@@ -106,9 +160,9 @@ python test_e2e.py --solana-pay --solana-sign
 
 ## API
 
-### `POST /v1/diligence` — x402 gated ($0.05 USDC, Base **or** Solana)
+### `POST /v1/diligence` — x402-gated ($0.05 USDC, Base **or** Solana)
 
-The route advertises two `accepts` payment options. Clients pick the chain by signing for the corresponding scheme.
+Headers: `X-Counsel-API-Key: ck_live_...` (required), `Idempotency-Key: <uuid>` (optional, 24h cache).
 
 ```json
 {
@@ -119,38 +173,69 @@ The route advertises two `accepts` payment options. Clients pick the chain by si
 }
 ```
 
-Returns: `session_id`, `evidence`, `synthesis`, `merkle_root`, `anchors.base`, `anchors.solana`, `officer_url`
+Returns: `session_id`, `tenant`, `customer`, `evidence`, `synthesis`, `merkle_root`, `anchors.base`, `anchors.solana`, `officer_url`. Replays of a prior `Idempotency-Key` return the cached response with `Idempotent-Replayed: true` header — no x402 charge.
+
+Auth failure modes (in order of evaluation): `401` if `X-Counsel-API-Key` is missing or invalid, `409` if `Idempotency-Key` is reused with a different payload, `402` if x402 payment fails.
 
 ### `GET /v1/officer/{session_id}`
 
-Returns the officer review view: session metadata, `merkle_root`, both `anchors`, `sign_url`.
+Returns the officer review payload: session metadata, `merkle_root`, both `anchors`, `sign_url`, and a `signing_payload_hint` describing both EIP-712 and Solana payload formats.
 
 ### `POST /v1/officer/{session_id}/sign`
 
-The officer signs the `merkle_root` with whatever wallet they have. Two schemes supported:
+Two signing schemes; server detects from request shape.
 
-**EVM (Metamask) — EIP-191 `personal_sign`:**
+**EVM (Metamask) — EIP-712 typed data:**
+
+The officer signs an EIP-712 typed-data structure with `domain={name:"Counsel", version:"1", chainId:8453}` and `Approval={session_id, merkle_root, decision}`. Metamask renders this as a structured prompt instead of an opaque hash.
+
 ```json
 {
   "decision": "APPROVED",
-  "signature": "0x<personal_sign(merkle_root)>",
-  "notes": "Travel rule clear."
+  "signature": "0x<EIP-712 ECDSA signature>",
+  "notes": "Travel rule clear; approved per FATF R.16."
 }
 ```
-Server ECDSA-recovers the signer address.
+Server ECDSA-recovers the signer address from the typed-data hash.
 
-**Solana (Phantom) — Ed25519:**
+**Solana (Phantom) — Ed25519 over domain-prefixed bytes:**
+
+The officer signs UTF-8 bytes of:
+```
+Counsel/v1
+chain=solana
+session_id=<uuid>
+merkle_root=<hex>
+decision=APPROVED
+```
+
 ```json
 {
   "decision": "APPROVED",
-  "signature": "<base58 Ed25519 signature over merkle_root>",
+  "signature": "<base58 Ed25519 signature>",
   "signer_pubkey": "<base58 Solana pubkey>",
   "notes": "Travel rule clear."
 }
 ```
 Server verifies the signature against the supplied pubkey.
 
-Returns: `decision`, `signer`, `signature_scheme` (`"eip191"` or `"ed25519"`), `merkle_root`, both `anchors`
+Both schemes bind the signature to `session_id` + `merkle_root` + `decision` — kills cross-session replay, cross-app phishing, and decision-flip attacks.
+
+Returns: `decision`, `signer`, `signature_scheme` (`"eip712"` or `"ed25519"`), `merkle_root`, both `anchors`, `status`. `403` if the recovered signer is not in the tenant's officer allowlist.
+
+### Admin endpoints (admin bearer auth)
+
+All `/v1/admin/*` routes require `Authorization: Bearer <ADMIN_API_KEY>`. Constant-time comparison; missing token returns 503 (fail-closed).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/v1/admin/customers` | Register a customer; returns API key once |
+| `GET` | `/v1/admin/customers` | List customers (no keys) |
+| `DELETE` | `/v1/admin/customers/{key_hash}` | Revoke a customer |
+| `POST` | `/v1/admin/officers` | Enroll an officer in a tenant's allowlist |
+| `GET` | `/v1/admin/officers?tenant=...` | List officers for a tenant |
+| `DELETE` | `/v1/admin/officers/{signer}` | Revoke an officer |
+| `POST` | `/v1/admin/erasure` | GDPR Art. 17 — anonymize PII for a session/vendor while preserving audit chain |
 
 ---
 
@@ -319,27 +404,46 @@ Counsel is genuinely chain-neutral at every layer that matters for institutional
 ```
 gavel/
 ├── src/
-│   ├── app.py                  # FastAPI + x402 middleware + Mangum
+│   ├── app.py                       # FastAPI + 3 middlewares + Mangum
+│   ├── models.py                    # Pydantic request schemas
+│   ├── requirements.in              # Direct dependencies
+│   ├── requirements.txt             # uv-pip-compiled lockfile (301 packages pinned)
 │   ├── routes/
-│   │   ├── diligence.py        # POST /v1/diligence
-│   │   ├── officer.py          # GET/POST /v1/officer/{id}
-│   │   └── stub.py             # Self-hosted Orbis stubs (demo determinism)
-│   ├── services/
-│   │   ├── bazaar_client.py    # Outbound x402 compliance calls
-│   │   ├── bedrock_client.py   # Claude synthesis
-│   │   ├── cdp_auth.py         # CDP EdDSA JWT auth
-│   │   └── evidence_store.py   # DynamoDB + Merkle root + Base + Solana anchor
-│   └── models.py
+│   │   ├── admin.py                 # /v1/admin/{customers,officers,erasure}
+│   │   ├── diligence.py             # POST /v1/diligence
+│   │   ├── officer.py               # GET/POST /v1/officer/{id}
+│   │   └── stub.py                  # Self-hosted Orbis-shape stubs
+│   └── services/
+│       ├── bazaar_client.py         # Outbound x402 compliance calls
+│       ├── bedrock_client.py        # Claude Haiku synthesis
+│       ├── cdp_auth.py              # CDP EdDSA JWT facilitator auth
+│       ├── customer_registry.py     # Per-tenant API keys (S5)
+│       ├── erasure.py               # GDPR Art. 17 erasure handler
+│       ├── evidence_store.py        # DynamoDB + Merkle root + dual anchor + S3 vault
+│       ├── idempotency.py           # Idempotency-Key cache layer (S10)
+│       ├── officer_registry.py      # Per-tenant officer allowlist (S1)
+│       ├── secrets.py               # Secrets Manager fetch + cache (S2)
+│       └── signing.py               # EIP-712 + Solana domain-prefix verifiers (S3)
 ├── gavel_toolkit/
-│   ├── discovery.py            # resolve() / resolve_and_call()
-│   ├── providers/              # JSON provider registry (Base + Solana)
+│   ├── discovery.py                 # resolve() / resolve_and_call() — chain-agnostic
+│   ├── providers/                   # JSON registry (7 providers, 2 chains, 1 via=pay.sh)
 │   └── README.md
 ├── scripts/
-│   └── test_solana_anchor.py   # Standalone Memo program smoke test
-├── template.yaml               # AWS SAM
-└── test_e2e.py                 # Live end-to-end test (pays real USDC)
+│   ├── apply_throttling.sh          # Apply API Gateway rate limit + burst (S9)
+│   ├── apply_ttl.sh                 # Enable DynamoDB TTL on session/erasure rows (S12)
+│   ├── create_treasury_usdc_ata.py  # First-deploy: create Solana treasury USDC ATA
+│   ├── test_idempotency.py          # Demonstrate Idempotent-Replayed behavior
+│   └── test_solana_anchor.py        # Standalone Memo-program smoke test
+├── template.yaml                    # AWS SAM (Lambda + DynamoDB + S3 Object Lock + Secrets Manager)
+└── test_e2e.py                      # Full mainnet e2e — pays real USDC, signs EIP-712 / Ed25519
 ```
 
 ---
 
-## Built solo at EasyA Consensus 2026, Miami.
+## Closing
+
+Counsel ships **eleven shipped institutional security controls** verified live on AWS — domain-separated EIP-712 + Ed25519 signing, per-tenant officer allowlist, WORM evidence vault on S3 Object Lock, AWS Secrets Manager for runtime secrets, scoped Bedrock IAM, pinned dependency lockfile, API Gateway edge throttling, customer authentication with payload-hash idempotency, GDPR Article 17 erasure with AML retention reconciliation, atomic concurrent-officer claim, and 7-year DynamoDB TTL — alongside the multi-chain integrity story that defines the product.
+
+Three independent compliance providers, AI synthesis grounded in real numbers, every Merkle root anchored on Base **and** Solana mainnet every call, and a human officer signature cryptographically bound to that exact evidence set. Forging a Counsel approval requires breaking SHA-256, the officer's private key, and reorging two L1s.
+
+Built solo at **EasyA Consensus 2026 · Miami**. Repo: [`hypeprinter007-stack/gavel`](https://github.com/hypeprinter007-stack/gavel). Live: `https://ki55wa4a21.execute-api.us-east-1.amazonaws.com`.
