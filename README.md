@@ -186,8 +186,8 @@ list_intents()
 
 # resolve() is chain-agnostic — same call returns providers across networks
 resolve("wallet_screening")
-# [{"id": "solana_aml_checker",   "network": "solana:mainnet", "price_usd": 0.001},
-#  {"id": "scorechain_solana_aml","network": "solana:mainnet", "price_usd": 0.01}]
+# [{"id": "solana_aml_checker",   "network": "solana:5eykt4Us...", "price_usd": 0.001},
+#  {"id": "scorechain_solana_aml","network": "solana:5eykt4Us...", "price_usd": 0.01}]
 ```
 
 **Built-in providers:**
@@ -197,9 +197,9 @@ resolve("wallet_screening")
 | MRU SENTINEL Travel Rule | `travel_rule_compliance` | `eip155:8453` | $0.005 |
 | Orbis Trade Finance Risk | `trade_finance_risk` | `eip155:8453` | $0.005 |
 | Orbis Embedded Finance Score | `embedded_finance_compliance` | `eip155:8453` | $0.005 |
-| Scorechain Solana AML | `wallet_screening` | `solana:mainnet` | $0.01 |
-| Solana Attestation Service | `kyc_attestation` | `solana:mainnet` | $0.005 |
-| SOLANA AML Checker | `wallet_screening` | `solana:mainnet` | $0.001 |
+| Scorechain Solana AML | `wallet_screening` | `solana:5eykt4Us...` | $0.01 |
+| Solana Attestation Service | `kyc_attestation` | `solana:5eykt4Us...` | $0.005 |
+| SOLANA AML Checker | `wallet_screening` | `solana:5eykt4Us...` | $0.001 |
 
 See [gavel_toolkit/README.md](gavel_toolkit/README.md) for the full registry schema.
 

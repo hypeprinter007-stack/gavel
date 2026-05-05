@@ -73,7 +73,7 @@ The registry uses CAIP-2 chain identifiers, so the same `resolve(intent)` call r
 | Orbis Trade Finance Risk | `trade_finance_risk` | $0.005 |
 | Orbis Embedded Finance Score | `embedded_finance_compliance` | $0.005 |
 
-**Solana (`solana:mainnet`)** — registered, integration pending
+**Solana (`solana:5eykt4Us...`)** — registered, integration pending
 
 | Provider | Intent | Price |
 |----------|--------|-------|
@@ -84,8 +84,8 @@ The registry uses CAIP-2 chain identifiers, so the same `resolve(intent)` call r
 ```python
 from gavel_toolkit.discovery import resolve
 resolve("wallet_screening")
-# [{"id": "solana_aml_checker", "network": "solana:mainnet", ...},
-#  {"id": "scorechain_solana_aml", "network": "solana:mainnet", ...}]
+# [{"id": "solana_aml_checker", "network": "solana:5eykt4Us...", ...},
+#  {"id": "scorechain_solana_aml", "network": "solana:5eykt4Us...", ...}]
 ```
 
 ## Fork and customize

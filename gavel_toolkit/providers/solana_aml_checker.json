@@ -5,7 +5,7 @@
   "url": "https://api.solana-aml-checker.io/v1/screen",
   "method": "POST",
   "price_usd": 0.001,
-  "network": "solana:mainnet",
+  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
   "description": "Open-source AML compliance and risk assessment tool for Solana. Screens wallets and NFTs against sanctions lists and known-bad-actor sets.",
   "input_schema": {
     "wallet_address": "string",

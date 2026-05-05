@@ -15,7 +15,7 @@ def _bedrock():
     return _client
 
 
-def synthesize(vendor_name: str, evidence: dict) -> tuple[str, str]:
+def synthesize(vendor_name: str, evidence: dict) -> tuple[str, str, str]:
     prompt = f"""You are a compliance analyst. Synthesize the following due diligence results for vendor "{vendor_name}" into a structured risk assessment.
 
 Evidence:
@@ -40,4 +40,4 @@ Return only valid JSON."""
     # Strip markdown code fences if present
     if output.startswith("```"):
         output = output.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    return output, prompt_hash
+    return output, prompt_hash, MODEL_ID

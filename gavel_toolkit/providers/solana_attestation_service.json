@@ -5,7 +5,7 @@
   "url": "https://attestation-service.solana.com/v1/issue",
   "method": "POST",
   "price_usd": 0.005,
-  "network": "solana:mainnet",
+  "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
   "description": "Permissionless protocol for trusted issuers to associate off-chain KYC verification with a Solana wallet. Attestations are signed, verifiable, and reusable across applications.",
   "input_schema": {
     "subject_wallet": "string",

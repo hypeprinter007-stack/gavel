@@ -56,8 +56,8 @@ async def run_diligence(req: DiligenceRequest):
     }
 
     try:
-        synthesis_output, prompt_hash = bedrock_client.synthesize(req.vendor_name, evidence)
-        synthesis_hash = evidence_store.record_synthesis(session_id, prompt_hash, synthesis_output, "claude-haiku-4-5")
+        synthesis_output, prompt_hash, model_id = bedrock_client.synthesize(req.vendor_name, evidence)
+        synthesis_hash = evidence_store.record_synthesis(session_id, prompt_hash, synthesis_output, model_id)
         synthesis = json.loads(synthesis_output)
     except Exception as e:
         synthesis = {"error": str(e)}
