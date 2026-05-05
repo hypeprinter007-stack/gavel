@@ -13,29 +13,32 @@ Reusable primitives for building institutional AI agents with x402 payments on B
 ## Quick start
 
 ```python
-from gavel_toolkit.discovery import resolve, resolve_and_call
+from gavel_toolkit.discovery import resolve, resolve_and_call, list_intents
 
-# See what intents are available
-from gavel_toolkit.discovery import list_intents
 print(list_intents())
-# ['embedded_finance_compliance', 'trade_finance_risk', 'travel_rule_compliance']
+# ['embedded_finance_compliance', 'kyc_attestation', 'trade_finance_risk',
+#  'travel_rule_compliance', 'wallet_screening']
 
-# Find providers for an intent
-providers = resolve("travel_rule_compliance")
-# [{'id': 'mru_travel_rule', 'price_usd': 0.005, ...}]
+# Find providers for an intent (cross-chain, sorted by price)
+providers = resolve("wallet_screening")
+# [{'id': 'solana_aml_checker', 'network': 'solana:5eykt4Us...', 'price_usd': 0.001, ...},
+#  {'id': 'scorechain_solana_aml', 'network': 'solana:5eykt4Us...', 'price_usd': 0.01, ...}]
 
-# Route and pay in one call
+# Route, pay, and call in one shot. Pass keys for whichever chain(s) you can
+# settle on; the dispatcher skips providers it can't pay.
 result = resolve_and_call(
     intent="travel_rule_compliance",
     payload={
-        "originator": {"address": "0x...", "name": "Acme Corp", "country_code": "US"},
+        "originator": {"address": "0x...", "name": "Customer", "country_code": "US"},
         "beneficiary": {"address": "0x...", "name": "Vendor", "country_code": "AE"},
         "amount_usd": 50000,
         "purpose": "trade settlement",
     },
-    payer_key="0x<your-private-key>",
+    evm_payer_key="0x<hex private key>",     # for eip155:* providers
+    solana_payer_key="<base58 keypair>",     # for solana:* providers
 )
 print(result["recommendation"])  # "PROCEED"
+print(result["_provider"], result["_network"])  # routed provider + chain
 ```
 
 ## Adding your own providers
