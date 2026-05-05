@@ -31,8 +31,10 @@ async def run_diligence(req: DiligenceRequest):
         futures = {
             pool.submit(_call_bazaar, bazaar_client.ofac_screen,
                         req.vendor_name, req.vendor_wallet, req.vendor_country, req.amount_usd): "mru_travel_rule",
-            pool.submit(_call_bazaar, bazaar_client.trade_finance_risk, req.amount_usd): "orbis_trade_finance",
-            pool.submit(_call_bazaar, bazaar_client.embedded_finance_score): "orbis_embedded_finance",
+            pool.submit(_call_bazaar, bazaar_client.trade_finance_risk,
+                        req.amount_usd, req.vendor_country): "orbis_trade_finance",
+            pool.submit(_call_bazaar, bazaar_client.embedded_finance_score,
+                        req.vendor_country): "orbis_embedded_finance",
         }
         raw_results: dict[str, dict] = {}
         evidence_hashes: list[str] = []

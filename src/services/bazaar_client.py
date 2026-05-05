@@ -12,6 +12,43 @@ TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY", "")
 MRU_TRAVEL_RULE_URL = os.getenv("MRU_TRAVEL_RULE_URL", "https://mru-oracle.com/compliance/travel-rule")
 ORBIS_TRADE_URL = os.getenv("ORBIS_TRADE_URL", "https://orbisapi.com/proxy/trade-finance-risk-score-api-d53631/score")
 ORBIS_EMBEDDED_URL = os.getenv("ORBIS_EMBEDDED_URL", "https://orbisapi.com/proxy/embedded-finance-score-api-a69119/analyze")
+ORIGINATOR_NAME = os.getenv("ORIGINATOR_NAME", "Counsel Demo Client")
+ORIGINATOR_COUNTRY = os.getenv("ORIGINATOR_COUNTRY", "US")
+
+# FATF risk categorization for trade-finance buyer-country-risk enum.
+# References: FATF Public Statement (high-risk + monitored jurisdictions),
+# OFAC sanctions program list. ISO 3166-1 alpha-2 codes.
+_FATF_HIGH_RISK = {"IR", "KP", "MM"}                 # call for action
+_FATF_MONITORED = {"AE", "BG", "BF", "CM", "HR", "CD", "HT", "JM", "ML",
+                   "MZ", "NG", "PA", "PH", "SN", "SS", "SY", "TZ", "TR",
+                   "UG", "VE", "VN", "YE"}            # increased monitoring
+_FATF_LOW_RISK = {"US", "GB", "DE", "FR", "JP", "CA", "AU", "NL", "SE",
+                  "CH", "SG", "DK", "NO", "FI", "NZ", "IE", "AT"}
+
+_JURISDICTION_BUCKETS = {
+    "us": "us", "ca": "us",
+    "gb": "uk",
+    "de": "eu", "fr": "eu", "nl": "eu", "es": "eu", "it": "eu",
+    "se": "eu", "dk": "eu", "fi": "eu", "no": "eu", "ie": "eu",
+    "at": "eu", "be": "eu", "pt": "eu", "pl": "eu",
+    "sg": "apac", "jp": "apac", "hk": "apac", "au": "apac",
+    "kr": "apac", "tw": "apac", "nz": "apac",
+}
+
+
+def _country_risk(iso2: str) -> str:
+    code = (iso2 or "").upper()
+    if code in _FATF_HIGH_RISK:
+        return "very-high"
+    if code in _FATF_MONITORED:
+        return "medium"
+    if code in _FATF_LOW_RISK:
+        return "low"
+    return "medium"
+
+
+def _jurisdiction_bucket(iso2: str) -> str:
+    return _JURISDICTION_BUCKETS.get((iso2 or "").lower(), "other")
 
 
 def _session() -> _requests.Session:
@@ -31,8 +68,8 @@ def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amoun
         json={
             "originator": {
                 "address": Account.from_key(TREASURY_KEY).address,
-                "name": "Acme Corp",
-                "country_code": "US",
+                "name": ORIGINATOR_NAME,
+                "country_code": ORIGINATOR_COUNTRY,
             },
             "beneficiary": {
                 "address": vendor_wallet,
@@ -48,12 +85,12 @@ def ofac_screen(vendor_name: str, vendor_wallet: str, vendor_country: str, amoun
     return resp.json()
 
 
-def trade_finance_risk(amount_usd: float, country_risk: str = "medium") -> dict:
+def trade_finance_risk(amount_usd: float, vendor_country: str = "") -> dict:
     resp = _session().post(
         ORBIS_TRADE_URL,
         json={
             "transactionValueUsd": amount_usd,
-            "buyerCountryRisk": country_risk,
+            "buyerCountryRisk": _country_risk(vendor_country),
             "paymentTerm": "open-account",
             "tenorDays": 30,
             "buyerCreditRating": "BBB",
@@ -64,7 +101,7 @@ def trade_finance_risk(amount_usd: float, country_risk: str = "medium") -> dict:
     return resp.json()
 
 
-def embedded_finance_score(jurisdiction: str = "other") -> dict:
+def embedded_finance_score(vendor_country: str = "") -> dict:
     resp = _session().post(
         ORBIS_EMBEDDED_URL,
         json={
@@ -72,7 +109,7 @@ def embedded_finance_score(jurisdiction: str = "other") -> dict:
             "kycAmlLevel": "enhanced",
             "monthlyVolume": 5000000,
             "apiResponseMs": 250,
-            "jurisdiction": jurisdiction,
+            "jurisdiction": _jurisdiction_bucket(vendor_country),
             "errorRate": 0.002,
             "encryptionLevel": "aes256-fips",
         },

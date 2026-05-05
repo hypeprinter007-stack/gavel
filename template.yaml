@@ -50,6 +50,8 @@ Resources:
           SOLANA_RPC_URL: https://api.mainnet-beta.solana.com
           SOLANA_TREASURY_KEY: !Ref SolanaTreasuryKey
           SOLANA_TREASURY_ADDRESS: !Ref SolanaTreasuryAddress
+          ORIGINATOR_NAME: Counsel Demo Client
+          ORIGINATOR_COUNTRY: US
       Events:
         ApiEvent:
           Type: HttpApi
