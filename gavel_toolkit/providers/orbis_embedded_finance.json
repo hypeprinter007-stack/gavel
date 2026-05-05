@@ -1,0 +1,21 @@
+{
+  "id": "orbis_embedded_finance",
+  "name": "Orbis Embedded Finance Score",
+  "intent": "embedded_finance_compliance",
+  "url": "https://orbisapi.com/proxy/embedded-finance-score-api-a69119/analyze",
+  "method": "POST",
+  "price_usd": 0.005,
+  "network": "eip155:8453",
+  "description": "Embedded finance compliance scoring across KYC/AML, security, performance, and jurisdiction",
+  "input_schema": {
+    "complianceFrameworks": "number",
+    "kycAmlLevel": "enum:none|basic|standard|enhanced",
+    "monthlyVolume": "number",
+    "apiResponseMs": "number",
+    "jurisdiction": "enum:us|eu|uk|apac|other",
+    "errorRate": "number",
+    "encryptionLevel": "enum:none|tls|aes256|aes256-fips"
+  },
+  "output_fields": ["score", "tier", "complianceScore", "securityScore", "factors", "recommendations"],
+  "tags": ["embedded_finance", "kyc", "aml", "compliance_score"]
+}

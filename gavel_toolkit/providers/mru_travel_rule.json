@@ -1,0 +1,18 @@
+{
+  "id": "mru_travel_rule",
+  "name": "MRU SENTINEL Travel Rule",
+  "intent": "travel_rule_compliance",
+  "url": "https://mru-oracle.com/compliance/travel-rule",
+  "method": "POST",
+  "price_usd": 0.005,
+  "network": "eip155:8453",
+  "description": "FATF Travel Rule compliance check with wallet screening and jurisdiction analysis",
+  "input_schema": {
+    "originator": {"address": "string", "name": "string", "country_code": "string"},
+    "beneficiary": {"address": "string", "name": "string", "country_code": "string"},
+    "amount_usd": "number",
+    "purpose": "string"
+  },
+  "output_fields": ["recommendation", "compositeRisk", "packetId", "travelRule", "originator", "beneficiary"],
+  "tags": ["aml", "fatf", "travel_rule", "wallet_screening", "jurisdiction"]
+}

@@ -38,6 +38,7 @@ def run():
     print(f"Status: {resp.status_code}")
     data = resp.json()
     print(f"\nsession_id:      {data.get('session_id')}")
+    print(f"merkle_root:     {data.get('merkle_root')}")
     print(f"synthesis:")
     print(json.dumps(data.get('synthesis', {}), indent=2))
     print(f"\nofficer_url:     {data.get('officer_url')}")

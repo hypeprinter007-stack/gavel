@@ -42,6 +42,14 @@ async def run_diligence(req: DiligenceRequest):
         "embedded_finance_score": results.get("orbis_embedded_finance", {}),
     }
 
+    evidence_hashes = [
+        h for key, h in {
+            k: evidence_store.record_evidence(session_id, k, v)
+            for k, v in evidence.items()
+            if "error" not in v
+        }.items()
+    ]
+
     try:
         synthesis_output, prompt_hash = bedrock_client.synthesize(req.vendor_name, evidence)
         synthesis_hash = evidence_store.record_synthesis(session_id, prompt_hash, synthesis_output, "claude-haiku-4-5")
@@ -50,11 +58,14 @@ async def run_diligence(req: DiligenceRequest):
         synthesis = {"error": str(e)}
         synthesis_hash = ""
 
+    merkle_root = evidence_store.finalize_session(session_id, evidence_hashes, synthesis_hash)
+
     return {
         "session_id": session_id,
         "vendor": req.vendor_name,
         "evidence": evidence,
         "synthesis": synthesis,
+        "merkle_root": merkle_root,
         "synthesis_hash": synthesis_hash,
         "officer_url": f"/v1/officer/{session_id}",
     }

@@ -57,6 +57,21 @@ def record_synthesis(session_id: str, prompt_hash: str, output: str, model: str)
     return h
 
 
+def compute_merkle_root(hashes: list[str]) -> str:
+    combined = "".join(sorted(hashes))
+    return hashlib.sha256(combined.encode()).hexdigest()
+
+
+def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash: str) -> str:
+    merkle_root = compute_merkle_root(evidence_hashes + [synthesis_hash])
+    _table().update_item(
+        Key={"pk": f"session#{session_id}"},
+        UpdateExpression="SET merkle_root = :m",
+        ExpressionAttributeValues={":m": merkle_root},
+    )
+    return merkle_root
+
+
 def record_approval(session_id: str, decision: str, signature: str, notes: str = "") -> None:
     _table().put_item(Item={
         "pk": f"session#{session_id}#approval",

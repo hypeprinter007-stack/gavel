@@ -1,0 +1,19 @@
+{
+  "id": "orbis_trade_finance",
+  "name": "Orbis Trade Finance Risk Score",
+  "intent": "trade_finance_risk",
+  "url": "https://orbisapi.com/proxy/trade-finance-risk-score-api-d53631/score",
+  "method": "POST",
+  "price_usd": 0.005,
+  "network": "eip155:8453",
+  "description": "Trade finance risk scoring based on transaction value, buyer credit rating, and payment terms",
+  "input_schema": {
+    "transactionValueUsd": "number",
+    "buyerCountryRisk": "enum:low|medium|high|very-high",
+    "paymentTerm": "enum:confirmed-lc|lc|documentary-collection|open-account|cash-in-advance",
+    "tenorDays": "number",
+    "buyerCreditRating": "string"
+  },
+  "output_fields": ["score", "tier"],
+  "tags": ["trade_finance", "credit_risk", "counterparty"]
+}
