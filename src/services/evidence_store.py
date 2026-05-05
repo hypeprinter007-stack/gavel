@@ -3,12 +3,15 @@ import json
 import os
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import boto3
 
 TABLE = os.getenv("EVIDENCE_TABLE", "counsel-evidence")
 BASE_RPC_URL = os.getenv("BASE_RPC_URL", "https://mainnet.base.org")
 TREASURY_KEY = os.getenv("TREASURY_PRIVATE_KEY")
+SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+SOLANA_TREASURY_KEY = os.getenv("SOLANA_TREASURY_KEY")
 _db = None
 
 
@@ -87,17 +90,72 @@ def anchor_to_base(merkle_root: str) -> str:
     return "0x" + tx_hash.hex()
 
 
-def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash: str) -> tuple[str, str]:
-    """Returns (merkle_root, anchor_tx_hash)."""
+_MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+
+
+def anchor_to_solana(merkle_root: str) -> str:
+    """Posts merkle_root via Solana Memo program. Returns base58 tx signature."""
+    import base58
+    import requests as rq
+    from solders.hash import Hash
+    from solders.instruction import AccountMeta, Instruction
+    from solders.keypair import Keypair
+    from solders.message import Message
+    from solders.pubkey import Pubkey
+    from solders.transaction import Transaction
+
+    if not SOLANA_TREASURY_KEY:
+        raise RuntimeError("SOLANA_TREASURY_KEY not set")
+
+    kp = Keypair.from_bytes(base58.b58decode(SOLANA_TREASURY_KEY))
+
+    def _rpc(method, params):
+        r = rq.post(SOLANA_RPC_URL, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, timeout=10)
+        r.raise_for_status()
+        j = r.json()
+        if "error" in j:
+            raise RuntimeError(f"Solana RPC: {j['error']}")
+        return j["result"]
+
+    blockhash = _rpc("getLatestBlockhash", [{"commitment": "finalized"}])["value"]["blockhash"]
+    ix = Instruction(
+        program_id=Pubkey.from_string(_MEMO_PROGRAM_ID),
+        accounts=[AccountMeta(pubkey=kp.pubkey(), is_signer=True, is_writable=True)],
+        data=merkle_root.encode("utf-8"),
+    )
+    msg = Message.new_with_blockhash([ix], kp.pubkey(), Hash.from_string(blockhash))
+    tx = Transaction([kp], msg, Hash.from_string(blockhash))
+    raw = bytes(tx)
+    return _rpc("sendTransaction", [base58.b58encode(raw).decode(), {"encoding": "base58", "preflightCommitment": "processed"}])
+
+
+def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash: str) -> tuple[str, str, str | None]:
+    """Returns (merkle_root, base_anchor_tx, solana_anchor_tx_or_None)."""
     leaves = evidence_hashes + ([synthesis_hash] if synthesis_hash else [])
     merkle_root = compute_merkle_root(leaves)
-    anchor_tx = anchor_to_base(merkle_root)
+
+    base_tx: str = ""
+    solana_tx: str | None = None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_base = pool.submit(anchor_to_base, merkle_root)
+        f_sol = pool.submit(anchor_to_solana, merkle_root)
+        base_tx = f_base.result(timeout=30)
+        try:
+            solana_tx = f_sol.result(timeout=20)
+        except Exception:
+            solana_tx = None
+
+    update_expr = "SET merkle_root = :m, anchor_tx = :t"
+    values: dict = {":m": merkle_root, ":t": base_tx}
+    if solana_tx:
+        update_expr += ", solana_anchor_tx = :s"
+        values[":s"] = solana_tx
     _table().update_item(
         Key={"pk": f"session#{session_id}"},
-        UpdateExpression="SET merkle_root = :m, anchor_tx = :t",
-        ExpressionAttributeValues={":m": merkle_root, ":t": anchor_tx},
+        UpdateExpression=update_expr,
+        ExpressionAttributeValues=values,
     )
-    return merkle_root, anchor_tx
+    return merkle_root, base_tx, solana_tx
 
 
 def record_approval(session_id: str, decision: str, signature: str, notes: str = "", signer_address: str = "") -> None:

@@ -21,6 +21,10 @@ Parameters:
   CdpApiKeySecret:
     Type: String
     NoEcho: true
+  SolanaTreasuryKey:
+    Type: String
+    NoEcho: true
+    Default: ""
 
 Resources:
   CounselFunction:
@@ -40,6 +44,8 @@ Resources:
           BEDROCK_REGION: us-east-1
           ORBIS_TRADE_URL: https://ki55wa4a21.execute-api.us-east-1.amazonaws.com/v1/stub/orbis/trade-finance-risk
           ORBIS_EMBEDDED_URL: https://ki55wa4a21.execute-api.us-east-1.amazonaws.com/v1/stub/orbis/embedded-finance-score
+          SOLANA_RPC_URL: https://api.mainnet-beta.solana.com
+          SOLANA_TREASURY_KEY: !Ref SolanaTreasuryKey
       Events:
         ApiEvent:
           Type: HttpApi

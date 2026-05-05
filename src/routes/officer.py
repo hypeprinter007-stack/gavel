@@ -8,6 +8,15 @@ from services import evidence_store
 router = APIRouter()
 
 
+def _anchors(session: dict) -> dict:
+    base_tx = session.get("anchor_tx")
+    sol_tx = session.get("solana_anchor_tx")
+    return {
+        "base": {"tx": base_tx, "explorer_url": f"https://basescan.org/tx/{base_tx}"} if base_tx else None,
+        "solana": {"tx": sol_tx, "explorer_url": f"https://solscan.io/tx/{sol_tx}"} if sol_tx else None,
+    }
+
+
 @router.get("/officer/{session_id}")
 async def get_officer_view(session_id: str):
     session = evidence_store.get_session(session_id)
@@ -19,8 +28,7 @@ async def get_officer_view(session_id: str):
         "status": session.get("status"),
         "started_at": session.get("started_at"),
         "merkle_root": session.get("merkle_root"),
-        "anchor_tx": session.get("anchor_tx"),
-        "basescan_url": f"https://basescan.org/tx/{session.get('anchor_tx')}" if session.get("anchor_tx") else None,
+        "anchors": _anchors(session),
         "sign_url": f"/v1/officer/{session_id}/sign",
     }
 
@@ -47,7 +55,6 @@ async def officer_sign(session_id: str, req: OfficerSignRequest):
         "decision": req.decision,
         "signer_address": signer_address,
         "merkle_root": merkle_root,
-        "anchor_tx": session.get("anchor_tx"),
-        "basescan_url": f"https://basescan.org/tx/{session.get('anchor_tx')}",
+        "anchors": _anchors(session),
         "status": "recorded",
     }

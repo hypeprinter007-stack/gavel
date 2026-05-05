@@ -7,3 +7,5 @@ cryptography
 pydantic
 python-dotenv
 web3
+solders
+base58

@@ -61,7 +61,9 @@ async def run_diligence(req: DiligenceRequest):
         synthesis = {"error": str(e)}
         synthesis_hash = ""
 
-    merkle_root, anchor_tx = evidence_store.finalize_session(session_id, evidence_hashes, synthesis_hash)
+    merkle_root, anchor_tx, solana_anchor_tx = evidence_store.finalize_session(
+        session_id, evidence_hashes, synthesis_hash
+    )
 
     return {
         "session_id": session_id,
@@ -70,7 +72,18 @@ async def run_diligence(req: DiligenceRequest):
         "synthesis": synthesis,
         "merkle_root": merkle_root,
         "synthesis_hash": synthesis_hash,
-        "anchor_tx": anchor_tx,
-        "basescan_url": f"https://basescan.org/tx/{anchor_tx}",
+        "anchors": {
+            "base": {
+                "tx": anchor_tx,
+                "explorer_url": f"https://basescan.org/tx/{anchor_tx}",
+            },
+            "solana": (
+                {
+                    "tx": solana_anchor_tx,
+                    "explorer_url": f"https://solscan.io/tx/{solana_anchor_tx}",
+                }
+                if solana_anchor_tx else None
+            ),
+        },
         "officer_url": f"/v1/officer/{session_id}",
     }

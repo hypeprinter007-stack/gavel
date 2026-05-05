@@ -43,8 +43,13 @@ def run():
     data = resp.json()
     print(f"\nsession_id:      {data.get('session_id')}")
     print(f"merkle_root:     {data.get('merkle_root')}")
-    print(f"anchor_tx:       {data.get('anchor_tx')}")
-    print(f"basescan_url:    {data.get('basescan_url')}")
+    anchors = data.get("anchors") or {}
+    if anchors.get("base"):
+        print(f"Base anchor:     {anchors['base']['tx']}")
+        print(f"  basescan:      {anchors['base']['explorer_url']}")
+    if anchors.get("solana"):
+        print(f"Solana anchor:   {anchors['solana']['tx']}")
+        print(f"  solscan:       {anchors['solana']['explorer_url']}")
     print(f"\nsynthesis:")
     print(json.dumps(data.get('synthesis', {}), indent=2))
 
