@@ -12,10 +12,15 @@ import sys
 from dotenv import load_dotenv
 load_dotenv()
 
+import sys as _sys
+_sys.path.insert(0, "src")  # access services.signing without packaging
+
 import base58
 from eth_account import Account
-from eth_account.messages import encode_defunct
+from eth_account.messages import encode_typed_data
 from solders.keypair import Keypair as SolanaKeypair
+
+from services.signing import evm_typed_data, solana_message
 
 from x402 import x402ClientSync
 from x402.mechanisms.evm.exact import ExactEvmClientScheme
@@ -47,25 +52,27 @@ def _build_session(use_solana_pay: bool):
     return x402_requests(client), payer_label
 
 
-def _sign_evm(merkle_root: str) -> dict:
+def _sign_evm(session_id: str, merkle_root: str, decision: str = "APPROVED") -> dict:
     officer = Account.from_key(OFFICER_KEY)
-    msg = encode_defunct(text=merkle_root)
+    typed = evm_typed_data(session_id, merkle_root, decision)
+    msg = encode_typed_data(full_message=typed)
     sig = officer.sign_message(msg).signature.hex()
-    print(f"Officer (EVM, {officer.address}) signs merkle_root...")
-    return {"signature": "0x" + sig, "decision": "APPROVED",
+    print(f"Officer (EVM, {officer.address}) signs EIP-712 Approval typed-data...")
+    return {"signature": "0x" + sig, "decision": decision,
             "notes": "Travel rule clear. Proceed with enhanced monitoring."}
 
 
-def _sign_solana(merkle_root: str) -> dict:
-    # Generate a fresh Solana officer keypair on the fly — this is the
-    # "Phantom wallet officer" path. No funding needed; signing is off-chain.
+def _sign_solana(session_id: str, merkle_root: str, decision: str = "APPROVED") -> dict:
+    # Generate a fresh Solana officer keypair — "Phantom wallet officer"
+    # path. No funding needed; signing is off-chain.
     officer = SolanaKeypair()
-    sig = officer.sign_message(merkle_root.encode("utf-8"))
-    print(f"Officer (Solana, {officer.pubkey()}) signs merkle_root with Ed25519...")
+    msg_bytes = solana_message(session_id, merkle_root, decision)
+    sig = officer.sign_message(msg_bytes)
+    print(f"Officer (Solana, {officer.pubkey()}) signs domain-separated Counsel approval...")
     return {
         "signature": base58.b58encode(bytes(sig)).decode(),
         "signer_pubkey": str(officer.pubkey()),
-        "decision": "APPROVED",
+        "decision": decision,
         "notes": "Travel rule clear. Solana officer approval.",
     }
 
@@ -73,7 +80,7 @@ def _sign_solana(merkle_root: str) -> dict:
 def run(use_solana_pay: bool, use_solana_sign: bool):
     session, payer_label = _build_session(use_solana_pay)
     print(f"Payer:  {payer_label}")
-    print(f"Officer: {'Solana Ed25519 (fresh keypair)' if use_solana_sign else 'EVM EIP-191'}")
+    print(f"Officer: {'Solana Ed25519 (fresh keypair)' if use_solana_sign else 'EVM EIP-712'}")
 
     pay_chain = "Solana USDC" if use_solana_pay else "Base USDC"
     print(f"\nPOST /v1/diligence (paying $0.05 in {pay_chain})...")
@@ -105,7 +112,7 @@ def run(use_solana_pay: bool, use_solana_sign: bool):
         return
 
     print("\n--- Officer review ---")
-    payload = _sign_solana(merkle_root) if use_solana_sign else _sign_evm(merkle_root)
+    payload = _sign_solana(session_id, merkle_root) if use_solana_sign else _sign_evm(session_id, merkle_root)
     r3 = session.post(f"{API_URL}/v1/officer/{session_id}/sign", json=payload, timeout=20)
     print(f"\nPOST /v1/officer/{session_id}/sign — {r3.status_code}")
     print(json.dumps(r3.json(), indent=2))
