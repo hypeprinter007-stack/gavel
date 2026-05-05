@@ -239,6 +239,8 @@ Counsel was built with institutional review in mind. The following are **shipped
 - **AWS Secrets Manager for runtime secrets.** Treasury wallet keys (EVM + Solana), CDP API key secret, and the admin bearer token live in a single composite secret (`counsel/runtime`). Lambda env vars carry only the secret ARN; values are fetched at cold-start via `services/secrets.py` and cached in process memory. Lambda IAM is scoped to `secretsmanager:GetSecretValue` on that specific ARN; CloudTrail logs every access. Secrets can be rotated via `aws secretsmanager update-secret` without a stack redeploy.
 - **API Gateway edge throttling.** 100 RPS sustained / 50 in-flight burst per stage, applied via `apigatewayv2 update-stage` (see `scripts/apply_throttling.sh`). Defends against the asymmetric spend-amplification vector — an attacker paying $0.05 inbound to trigger $0.015 outbound + Bedrock cost gets rate-limited at the AWS edge before any of that fires.
 - **Customer authentication on `/v1/diligence`.** Per-institution API keys (`ck_live_...`) registered via `/v1/admin/customers`; raw keys returned exactly once and stored only as SHA-256 hashes in DynamoDB. Middleware runs BEFORE x402 — a missing or revoked key returns 401 without ever charging the customer. The authenticated customer's identity (name, country, tenant) flows into the travel-rule originator field and into the per-tenant officer registry scope, so an officer registered for tenant *A* cannot approve a tenant *B* session.
+- **GDPR Article 17 (Right-to-Erasure) endpoint.** `POST /v1/admin/erasure` (admin-gated) accepts a `session_id` or `vendor_name`, locates matching sessions, and anonymizes PII fields (`vendor_name`, `customer`, `notes`) with `[ERASED]` markers + `erased_at` timestamps. Hash-bound audit fields (Merkle root, signer, anchor txs, vault refs, decision) are preserved per AML retention rules. Every erasure writes an audit log row keyed by erasure_id with the requesting party + reason.
+- **DynamoDB TTL on session + erasure rows.** All session and erasure rows carry a `ttl_at` attribute set to `started_at + 7y` (matching FATF R.11 / FinCEN BSA / EU AMLD record-keeping windows). DynamoDB auto-purges expired rows; configured via `scripts/apply_ttl.sh` since `AWS::Serverless::SimpleTable` doesn't expose `TimeToLiveSpecification` directly.
 
 The following are **planned / production-track**:
 
@@ -249,9 +251,38 @@ The following are **planned / production-track**:
 | AWS WAF v2 with IP reputation + managed rule set | Roadmap | WAF v2 doesn't natively attach to API Gateway HTTP API (v2). Production posture: CloudFront in front of HTTP API → attach WAF web ACL with rate-based rule, IP reputation list, and tuned CommonRuleSet. Native API Gateway throttling provides L7 rate-limit coverage in the meantime. |
 | Lambda in VPC with PrivateLink endpoints | Roadmap | Bedrock + DynamoDB + S3 via VPC endpoints; outbound HTTPS via NAT-pinned IPs for IP allowlisting on partner APIs. |
 | Anomaly detection | Roadmap | CloudWatch alarms on REJECT spike, unusual jurisdictions, officer signing volume; SIEM integration. |
-| Right-to-Erasure path | Roadmap | DynamoDB TTL on session rows; PII-anonymization endpoint that nulls personal fields while preserving hash + signer. |
 
 The architecture (stateless Lambda, hash-only DynamoDB, WORM S3, allowlisted officers, multi-chain anchoring) is designed so that each roadmap item drops in without rewriting core logic.
+
+---
+
+## Data Flow + Processor Relationships
+
+Counsel acts as the **controller** for diligence sessions and engages the following **processors**:
+
+| Processor | Data shared | Purpose |
+|-----------|-------------|---------|
+| Coinbase Developer Platform (x402 facilitator) | Wallet addresses, payment amounts, signatures | Verify + settle x402 payments on Base / Solana |
+| Amazon Bedrock (Claude Haiku 4.5) | Synthesized evidence summary (vendor jurisdiction, scores) | LLM synthesis of the compliance recommendation |
+| MRU SENTINEL | Originator + beneficiary identity, jurisdiction, amount | FATF Travel Rule R.16 compliance check |
+| Orbis (or self-hosted stub) | Transaction value, jurisdiction, payment terms | Trade-finance + embedded-finance risk scoring |
+| Solana mainnet RPC | Memo program tx with Merkle root only | On-chain anchor (no PII transmitted) |
+| Base mainnet RPC | EIP-1559 calldata tx with Merkle root only | On-chain anchor (no PII transmitted) |
+
+Customers (tenants) act as controllers for their own vendor data; Counsel acts as a sub-processor when forwarding that data to the downstream compliance providers above.
+
+## Data Subject Rights (GDPR Articles 15–22)
+
+| Right | Status | Mechanism |
+|-------|--------|-----------|
+| Right of access (Art. 15) | ✅ | `GET /v1/officer/{session_id}` returns session metadata; admin can list per-tenant sessions |
+| Right to rectification (Art. 16) | ⚠️ | Sessions are immutable by design; rectification = new session referencing the prior |
+| Right to erasure (Art. 17) | ✅ | `POST /v1/admin/erasure` anonymizes PII fields (`vendor_name`, `customer`, `notes`) immediately; preserves hash + signer + anchor txs for the AML retention window |
+| Right to restriction (Art. 18) | Roadmap | Implementable via session status flag; not exposed yet |
+| Right to portability (Art. 20) | ✅ | Evidence + synthesis JSON downloadable from S3 vault for the session owner |
+| Right to object (Art. 21) | ✅ | Customer can revoke their API key via `DELETE /v1/admin/customers/{key_hash}`, blocking future processing |
+
+**Erasure / retention reconciliation.** Right-to-Erasure conflicts with AML record-keeping (FATF Recommendation 11, FinCEN BSA, EU AMLD all require ~5–7 years of retention). Counsel's approach: anonymize identifying fields immediately on Article 17 request, preserve the hash-bound integrity record (Merkle root, anchor txs, signer, decision) for the AML retention window, and physically delete after retention via DynamoDB TTL (`ttl_at` attribute, 7-year default) and S3 Object Lock retention expiry. Crypto-erasure of S3 evidence pre-retention is a roadmap option via per-tenant KMS CMK whose deletion renders the encrypted blobs unreadable.
 
 ---
 

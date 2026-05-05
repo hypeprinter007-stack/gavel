@@ -72,15 +72,23 @@ def _vault_put(key: str, body: bytes, content_type: str) -> dict:
     }
 
 
+RETENTION_SECONDS = int(os.getenv("RETENTION_SECONDS", str(7 * 365 * 24 * 60 * 60)))  # 7y default
+
+
 def new_session(vendor_name: str, tenant: str = "counsel", customer: str = "") -> str:
     session_id = str(uuid.uuid4())
+    started_at = int(time.time())
     item = {
         "pk": f"session#{session_id}",
         "type": "session_root",
         "vendor_name": vendor_name,
         "tenant": tenant,
-        "started_at": int(time.time()),
+        "started_at": started_at,
         "status": "pending",
+        # DynamoDB TTL attribute — table is configured to scan this and
+        # auto-delete expired rows. Matches the 7y AML record-keeping
+        # window (FATF R.11) and the S3 Object Lock retention.
+        "ttl_at": started_at + RETENTION_SECONDS,
     }
     if customer:
         item["customer"] = customer

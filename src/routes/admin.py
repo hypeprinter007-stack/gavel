@@ -8,7 +8,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from services import customer_registry, officer_registry, secrets
+from services import customer_registry, erasure, officer_registry, secrets
 
 router = APIRouter()
 
@@ -112,3 +112,30 @@ async def list_customers():
 async def revoke_customer(key_hash: str):
     revoked = customer_registry.revoke(key_hash)
     return {"revoked": revoked}
+
+
+# ───────────── GDPR Article 17 — Right to Erasure ─────────────
+
+
+class ErasureRequest(BaseModel):
+    """Identify the data subject by either session_id or vendor_name.
+    At least one must be provided."""
+    session_id: Optional[str] = None
+    vendor_name: Optional[str] = None
+    reason: str = "GDPR Article 17 erasure request from data subject"
+    requested_by: str = "compliance"
+
+
+@router.post("/admin/erasure", dependencies=[Depends(_require_admin)])
+async def execute_erasure(req: ErasureRequest):
+    if not (req.session_id or req.vendor_name):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either session_id or vendor_name to identify the data subject",
+        )
+    return erasure.request_erasure(
+        by_session_id=req.session_id,
+        by_vendor_name=req.vendor_name,
+        reason=req.reason,
+        requested_by=req.requested_by,
+    )
