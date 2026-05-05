@@ -89,7 +89,8 @@ def anchor_to_base(merkle_root: str) -> str:
 
 def finalize_session(session_id: str, evidence_hashes: list[str], synthesis_hash: str) -> tuple[str, str]:
     """Returns (merkle_root, anchor_tx_hash)."""
-    merkle_root = compute_merkle_root(evidence_hashes + [synthesis_hash])
+    leaves = evidence_hashes + ([synthesis_hash] if synthesis_hash else [])
+    merkle_root = compute_merkle_root(leaves)
     anchor_tx = anchor_to_base(merkle_root)
     _table().update_item(
         Key={"pk": f"session#{session_id}"},

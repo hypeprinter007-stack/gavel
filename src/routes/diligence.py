@@ -1,12 +1,19 @@
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from models import DiligenceRequest
 from services import bazaar_client, bedrock_client, evidence_store
 
 router = APIRouter()
+
+# Maps provider ID (DynamoDB source key) to friendly name (API response key)
+PROVIDERS = {
+    "mru_travel_rule": "travel_rule",
+    "orbis_trade_finance": "trade_finance_risk",
+    "orbis_embedded_finance": "embedded_finance_score",
+}
 
 
 def _call_bazaar(fn, *args, **kwargs):
@@ -20,7 +27,6 @@ def _call_bazaar(fn, *args, **kwargs):
 async def run_diligence(req: DiligenceRequest):
     session_id = evidence_store.new_session(req.vendor_name)
 
-    # Run all 3 Bazaar calls in parallel
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
             pool.submit(_call_bazaar, bazaar_client.ofac_screen,
@@ -28,27 +34,24 @@ async def run_diligence(req: DiligenceRequest):
             pool.submit(_call_bazaar, bazaar_client.trade_finance_risk, req.amount_usd): "orbis_trade_finance",
             pool.submit(_call_bazaar, bazaar_client.embedded_finance_score): "orbis_embedded_finance",
         }
-        results = {}
-        for future in as_completed(futures, timeout=20):
-            key = futures[future]
-            data = future.result()
-            results[key] = data
-            if "error" not in data:
-                evidence_store.record_evidence(session_id, key, data)
+        raw_results: dict[str, dict] = {}
+        evidence_hashes: list[str] = []
+        try:
+            for future in as_completed(futures, timeout=20):
+                provider_id = futures[future]
+                data = future.result()
+                raw_results[provider_id] = data
+                if "error" not in data:
+                    evidence_hashes.append(
+                        evidence_store.record_evidence(session_id, provider_id, data)
+                    )
+        except TimeoutError:
+            pass
 
     evidence = {
-        "travel_rule": results.get("mru_travel_rule", {}),
-        "trade_finance_risk": results.get("orbis_trade_finance", {}),
-        "embedded_finance_score": results.get("orbis_embedded_finance", {}),
+        friendly: raw_results.get(provider_id, {"error": "timeout"})
+        for provider_id, friendly in PROVIDERS.items()
     }
-
-    evidence_hashes = [
-        h for key, h in {
-            k: evidence_store.record_evidence(session_id, k, v)
-            for k, v in evidence.items()
-            if "error" not in v
-        }.items()
-    ]
 
     try:
         synthesis_output, prompt_hash = bedrock_client.synthesize(req.vendor_name, evidence)
