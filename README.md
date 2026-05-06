@@ -8,6 +8,34 @@ Counsel is the compliance + integrity vertical of the agentic API economy. Where
 
 ---
 
+## Demo
+
+📹 **Loom walkthrough:** _coming — recording tonight_
+
+### Live evidence — same Merkle root, two independent L1s
+
+`7646dda1564bde0ef3f3971f4c002962df64246da4aa1d8c47247e7632494710`
+
+This 64-character hash is anchored on **both** Base and Solana mainnet from a single diligence call. The same hash appears in three places: Counsel's terminal output, the Base transaction's calldata, and the Solana Memo program's data field.
+
+**1. Diligence runs end-to-end** — paying $0.05 USDC, three providers in parallel, Bedrock synthesis, dual-chain anchor, EIP-712 officer signature, decision recorded.
+
+![Live diligence](docs/screenshots/terminal_run.png)
+
+**2. Base anchor — Merkle root as EIP-1559 calldata.**
+[basescan.org/tx/0xf2908400…](https://basescan.org/tx/0xf2908400d45af03d8c1b65b33851434c6fd178b682a143904a2bfa89ff2c1fa7) — the Input Data field IS the anchor; calldata is permanent on-chain.
+
+![Base anchor](docs/screenshots/basescan_anchor.png)
+
+**3. Solana anchor — Merkle root via Memo program.**
+[solscan.io/tx/u8rqU4oS…](https://solscan.io/tx/u8rqU4oSQkkHQw93nCCtQym5crh4UjuoNvYhspLcUTEny59asrNNffpmxpgzRuZ4MXQnN5UEoCKQuDS16ZMPKW2) — Memo content shows the same 64-char hash, signed by the Solana treasury wallet.
+
+![Solana anchor](docs/screenshots/solscan_anchor.png)
+
+> Forging this approval requires breaking SHA-256, the officer's secp256k1 private key, AND reorging two independent L1s simultaneously.
+
+---
+
 ## The Problem
 
 AI agents are moving into institutional workflows: trade approvals, vendor onboarding, compliance screening. But there's no standard way to:
