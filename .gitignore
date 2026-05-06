@@ -6,3 +6,4 @@ __pycache__/
 .aws-sam/
 samconfig.toml
 .claude/
+node_modules/
