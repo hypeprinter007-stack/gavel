@@ -10,6 +10,8 @@ Counsel is the compliance + integrity vertical of the agentic API economy. Where
 
 ## Demo
 
+Counsel is API-first; the operator surface is the terminal + block explorers shown below.
+
 📹 **Loom walkthrough:** [Counsel — Decision Integrity Layer for Institutional AI Agents](https://www.loom.com/share/e14f5fdc79bf4e36a706fbbe68ab9958) — 4-minute demo + repo tour, with three live mainnet calls (200 / 401 / 403) and on-chain verification.
 
 ### Live evidence — same Merkle root, two independent L1s
