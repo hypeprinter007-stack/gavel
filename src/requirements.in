@@ -2,7 +2,7 @@ fastapi
 uvicorn
 mangum
 boto3
-x402[evm,svm,fastapi]
+x402[evm,svm,fastapi,extensions]
 cryptography
 pydantic
 python-dotenv
