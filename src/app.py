@@ -82,9 +82,9 @@ _diligence_bazaar_ext = declare_discovery_extension(
         "officer_url": "/v1/officer/6707f47b-ce61-4faf-9fa7-aef629adbff5",
     }),
 )
-# Match the indexed-by-CDP shape used by other production x402 services
-_diligence_bazaar_ext["bazaar"]["discoverable"] = True
-_diligence_bazaar_ext["bazaar"]["category"] = "compliance"
+# NOTE: not setting `discoverable` or `category` on the bazaar block —
+# our other indexed services (e.g. SignalFuse CVD) only carry `info` +
+# `schema`. Hypothesis: the extra fields trip silent CDP-side validation.
 
 _accepts: list[PaymentOption] = [
     PaymentOption(
